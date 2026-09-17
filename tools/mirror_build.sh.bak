@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# 用途：中文路径工程的 ASCII 镜像构建
+#
+# 背景（2026-09-16 M0 实测结论）：
+#   工程路径含中文（记账软件）时——
+#   1. AGP 默认直接拒绝构建（需 android.overridePathCheck=true 才能编译出 APK）
+#   2. 即使编译通过，testDebugUnitTest 的 worker JVM 会因 classpath 编码
+#      不匹配（UTF-8 vs GBK）抛 ClassNotFoundException，测试类根本加载不了
+#   3. junction（mklink /J）无效：Gradle 启动时会把根目录规范化成真实路径
+#   → 唯一可靠方案：把源码真实镜像到纯 ASCII 路径，从镜像目录构建
+#
+# 工具链位置（无头环境，不污染系统）：
+#   JDK17      ~/.workbuddy/toolchains/jdk/jdk-17.0.20.1+1
+#   Gradle 8.7 ~/.workbuddy/toolchains/gradle/gradle-8.7
+#   Android SDK ~/.workbuddy/toolchains/android-sdk（platform-34 + build-tools 34.0.0）
+#
+# 用法：bash tools/mirror_build.sh [:app:assembleDebug|:app:testDebugUnitTest|...]
+
+set -e
+
+SRC="/c/Users/zongb/WorkBuddy/记账软件"
+MIRROR="/c/Users/zongb/WorkBuddy/OfflineLedger"
+TASK="${1:-:app:assembleDebug}"
+
+export JAVA_HOME="C:\\Users\\zongb\\.workbuddy\\toolchains\\jdk\\jdk-17.0.20.1+1"
+export ANDROID_HOME="C:\\Users\\zongb\\.workbuddy\\toolchains\\android-sdk"
+GRADLE="/c/Users/zongb/.workbuddy/toolchains/gradle/gradle-8.7/bin/gradle.bat"
+
+echo "==> 同步源码到镜像 $MIRROR"
+cd "$SRC"
+tar cf - \
+  --exclude='./.gradle' \
+  --exclude='./build' \
+  --exclude='./app/build' \
+  --exclude='./.workbuddy' \
+  --exclude='./.git' \
+  . | (cd "$MIRROR" && tar xf -)
+
+echo "==> 在镜像中执行: gradle $TASK"
+cd "$MIRROR"
+"$GRADLE" "$TASK" --no-daemon
+
+echo "==> 完成。产物在 $MIRROR/app/build/outputs/ 下"

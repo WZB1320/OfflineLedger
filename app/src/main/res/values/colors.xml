@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#185FA5</color>
+    <color name="brand_dark">#042C53</color>
+    <color name="bg">#F7F7F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#1A1A18</color>
+    <color name="text_secondary">#6B6B66</color>
+    <color name="expense">#C0392B</color>
+    <color name="income">#1E8449</color>
+    <color name="divider">#E4E2DC</color>
+</resources>

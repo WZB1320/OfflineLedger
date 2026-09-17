@@ -1,0 +1,154 @@
+{
+  "version": 5,
+  "updatedAt": "2026-09-17",
+  "note": "解析规则全部外置在此文件中。微信/支付宝改版后，只需更新本文件并放到 filesDir/parser_rules.json 即可热替换，无需重新编译 APK。v5：支付宝导入档案用真实导出 CSV 完成校准（此前列名与枚举整理自开源文档，未经真实文件核对）。",
+  "sources": [
+    {
+      "id": "wechat",
+      "enabled": true,
+      "packageNames": ["com.tencent.mm"],
+      "titlePatterns": ["微信支付", "微信收款助手", "服务通知", "微信支付凭证"],
+      "ignoreIfContains": ["红包", "零钱通收益", "收款方已收款", "已退还"],
+      "amountPattern": "(?:¥|￥)\\s?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)",
+      "direction": {
+        "expense": ["已支付", "支付成功", "付款成功", "支出", "向你收款", "已扣款"],
+        "income": ["已收款", "收款到账", "退款", "入账", "收到", "已到账"]
+      },
+      "merchantPatterns": [
+        "(?:向|付给|付款给)\\s*([^，,。\\s]+)",
+        "(?:商户|收款方)[：:]\\s*([^，,。\\s]+)",
+        "^([^，,。]+?)(?:已支付|支付成功|付款成功)"
+      ],
+      "minAmount": 0.01
+    },
+    {
+      "id": "alipay",
+      "enabled": true,
+      "packageNames": ["com.eg.android.AlipayGphone"],
+      "titlePatterns": ["支付宝", "余额宝", "花呗", "余利宝"],
+      "ignoreIfContains": ["扫码领红包", "集五福", "签到", "蚂蚁森林", "蚂蚁庄园"],
+      "amountPattern": "([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s?元",
+      "direction": {
+        "expense": ["付款成功", "支出", "已付款", "支付成功", "扣款"],
+        "income": ["收款成功", "到账", "退款", "入账", "已收款"]
+      },
+      "merchantPatterns": [
+        "在\\s*([^，,。]+?)\\s*(?:消费|付款|支出)",
+        "(?:商户|收款方|收款账户)[：:]\\s*([^，,。\\s]+)",
+        "^([^，,。]+?)(?:付款成功|支付成功)"
+      ],
+      "minAmount": 0.01
+    },
+    {
+      "id": "bank_sms",
+      "enabled": false,
+      "packageNames": ["*bank*"],
+      "titlePatterns": ["银行", "储蓄卡", "信用卡", "账户"],
+      "ignoreIfContains": ["验证码", "登录", "激活"],
+      "amountPattern": "(?:人民币|RMB|￥|¥)\\s?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)",
+      "direction": {
+        "expense": ["支出", "消费", "扣款", "付款"],
+        "income": ["收入", "存入", "转入", "入账"]
+      },
+      "merchantPatterns": [],
+      "minAmount": 0.01
+    }
+  ],
+
+  "importProfiles": [
+    {
+      "id": "wechat_bill",
+      "displayName": "微信支付账单",
+      "verified": true,
+      "verifiedAgainst": "2026-09-10 真实导出样本：41 行 / 收入 14 笔 12.53 元 / 支出 26 笔 301.39 元 / 中性 1 笔，与账单自带汇总逐项一致",
+      "headerSignatures": ["交易时间", "交易类型", "交易对方", "商品", "收/支", "金额(元)", "交易单号", "商户单号"],
+      "minSignatureHits": 5,
+      "columns": {
+        "time":         ["交易时间", "付款时间"],
+        "type":         ["交易类型"],
+        "counterparty": ["交易对方"],
+        "product":      ["商品"],
+        "direction":    ["收/支"],
+        "amount":       ["金额(元)", "金额"],
+        "payMethod":    ["支付方式"],
+        "status":       ["当前状态"],
+        "txnNo":        ["交易单号", "交易号"],
+        "merchantNo":   ["商户单号"],
+        "remark":       ["备注"]
+      },
+      "directionTokens": {
+        "income":  ["收入", "已收入"],
+        "expense": ["支出", "已支出"],
+        "neutral": ["不计收支", "中性交易", "/"]
+      },
+      "dropStatusTokens": ["已全额退款", "已退款", "全额退款", "交易关闭", "已关闭", "已撤销", "对方已退还", "已失效"],
+      "categorySeed": {
+        "column": "",
+        "note": "微信「交易类型」取值是「商户消费 / 转账 / 红包 / 其他」这类交易形态，不是支出类别，只能作辅助信号，不能直接当分类种子"
+      }
+    },
+    {
+    "id": "alipay_bill",
+    "displayName": "支付宝交易明细",
+    "verified": true,
+    "verifiedAgainst": "2026-09-17 用真实导出 CSV（21154 字节，GBK）校准：132 数据行 / 支出 51 笔 3907.27 元 / 不计收支 71 笔 / 退款·关闭 3 笔 / 金额 0.00 共 7 笔未入账，笔数平衡 132=132；金额与账单自带汇总（支出 58 笔 3907.27 元、不计收支 74 笔 7176.56 元）逐项一致",
+      "headerSignatures": ["交易时间", "交易分类", "交易对方", "商品说明", "收/支", "金额", "交易订单号", "商家订单号"],
+      "minSignatureHits": 5,
+      "columns": {
+        "time":         ["交易时间"],
+        "type":         ["交易分类"],
+        "counterparty": ["交易对方"],
+        "product":      ["商品说明", "商品名称"],
+        "direction":    ["收/支"],
+        "amount":       ["金额", "金额(元)"],
+        "payMethod":    ["收/付款方式", "付款方式", "支付方式"],
+        "status":       ["交易状态", "当前状态"],
+        "txnNo":        ["交易订单号", "交易号"],
+        "merchantNo":   ["商家订单号"],
+        "remark":       ["备注"]
+      },
+      "directionTokens": {
+        "income":  ["收入"],
+        "expense": ["支出"],
+        "neutral": ["不计收支", "/"]
+      },
+      "dropStatusTokens": ["交易关闭", "已关闭", "已退款", "退款成功", "已撤销", "失败"],
+      "categorySeed": {
+        "column": "交易分类",
+        "note": "支付宝导出带真实分类列，可直接作初始分类种子（优先级低于用户修正记忆与自有关键词规则）",
+        "map": {
+          "餐饮美食": "food",
+          "交通出行": "transport",
+          "服饰装扮": "shopping",
+          "日用百货": "shopping",
+          "数码电器": "shopping",
+          "母婴亲子": "shopping",
+          "家居家装": "shopping",
+          "美容美发": "living",
+          "生活服务": "living",
+          "充值缴费": "living",
+        "医疗健康": "medical",
+        "文化休闲": "entertainment",
+        "酒店旅游": "entertainment",
+        "运动户外": "entertainment",
+        "教育培训": "education",
+        "图书音像": "education",
+        "住房物业": "housing",
+        "投资理财": "investment",
+        "保险": "investment",
+        "转账红包": "transfer",
+        "亲友代付": "transfer",
+        "亲属卡": "transfer",
+        "信用借还": "transfer",
+        "共享服务": "transport",
+        "汽车相关": "transport",
+        "爱车养车": "transport",
+        "公共服务": "living",
+        "宠物": "living",
+        "其他": "other"
+      },
+      "unmappedNote": "真实样本中还有「退款」这一分类值，刻意不做映射：退款行在支付宝账单里一律是「不计收支」+「退款成功」，会在方向判定与状态丢弃两处被拦下，根本进不了账本；若强行映射成某个支出类别，反而会在将来某次导出把它们放行时记成真实支出。"
+    }
+  }
+]
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">离线记账</string>
+
+    <string name="notification_listener_label">离线记账 · 支付通知监听</string>
+    <string name="accessibility_label">离线记账 · 账单页读取</string>
+    <string name="accessibility_description">仅在微信、支付宝账单页面读取金额与收款方，用于本地记账。数据不出本机。</string>
+
+    <string name="permission_hint_title">还差一步：开启支付通知监听</string>
+    <string name="permission_hint_body">本应用需要读取微信 / 支付宝的支付到账通知才能自动记账。\n所有数据仅保存在本机，应用没有网络权限，无法外传。</string>
+    <string name="permission_grant">前往授权</string>
+
+    <string name="tab_flow">流水</string>
+    <string name="tab_stats">统计</string>
+
+    <string name="empty_hint">暂无记录。\n开启通知监听后，收到微信 / 支付宝支付通知即会自动记录。</string>
+
+    <string name="import_csv">导入账单 CSV</string>
+    <string name="import_done">导入完成：新增 %1$d 条，跳过重复 %2$d 条</string>
+
+    <string name="stat_month_expense">本月支出</string>
+    <string name="stat_month_income">本月收入</string>
+    <string name="stat_count">记录条数</string>
+</resources>
