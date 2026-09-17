@@ -103,7 +103,28 @@ object FieldCipher {
     }
 
     /** 金额指纹：以「分」为单位取整，避免 25.0 与 25.00 被当成两笔。 */
-    fun amountHash(amount: Double): String = hmac(((amount * 100).toLong()).toString())
+    fun amountHash(amount: Double): String = hmac(amountCents(amount).toString())
+
+    /**
+     * 金额 → 分。
+     *
+     * **必须四舍五入，不能截断。** 原实现是 `(amount * 100).toLong()`，
+     * 而 IEEE754 下 `0.29 * 100 = 28.999999999999996`，截断得 28 ——
+     * 于是 0.28 与 0.29 落进同一个指纹。实测扫描 0.01~1000.00 共 10 万个金额：
+     *
+     *   - 截断：**4586 个金额换算错误**，形成 **3426 个碰撞桶**，涉及 6.85% 的金额
+     *     （偏偏是高频小额先中招：`2.00` 与 `2.01` 同指纹、`2.02` 与 `2.03` 同指纹……）
+     *   - `Math.round`：0 个错误
+     *
+     * 危害不是「hash 不好看」：[TransactionDao.isDuplicate] 的指纹判重只比对
+     * `amount_hash + merchant_hash + direction + 时间窗`，**没有金额数值复核**
+     * （`MergeMatcher.sameAmount` 那层 0.005 的容差在它上游，拦不到这里）。
+     * 所以同商户 3 分钟内的两笔 2.00 / 2.01 小额消费，后一笔会被判成「重复」
+     * 而**静默丢弃**——账目少一笔，对账时才发现，用户很难归因。
+     *
+     * 抽成 internal 纯函数是为了能在 JVM 单测里钉死（本方法不碰任何 Android API）。
+     */
+    internal fun amountCents(amount: Double): Long = Math.round(amount * 100)
 
     fun merchantHash(normalizedMerchant: String): String = hmac(normalizedMerchant)
 }

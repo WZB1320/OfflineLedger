@@ -158,19 +158,23 @@ class TransactionDao(private val db: LedgerDb) {
                 "SELECT 1 FROM txn WHERE txn_no = ? LIMIT 1", arrayOf(txnNo)
             ).use { if (it.moveToFirst()) return true }
         }
-        db.readableDatabase.rawQuery(
-            """
-            SELECT 1 FROM txn
-             WHERE amount_hash = ? AND merchant_hash = ? AND direction = ?
-               AND occurred_at BETWEEN ? AND ?
-             LIMIT 1
-            """.trimIndent(),
-            arrayOf(
-                amountHash, merchantHash, direction.code.toString(),
-                (occurredAt - dedupWindowMs).toString(),
-                (occurredAt + dedupWindowMs).toString()
-            )
-        ).use { return it.moveToFirst() }
+        // 指纹判重。若本条带单号，则只在「既有记录无单号」或「单号相同」时才算重复——
+        // 与 MergeMatcher.orderNumbersCompatible 同一语义：两边都有单号且不一致，
+        // 就是**可以证明的两笔不同交易**，不许再靠指纹合并。
+        //
+        // 缺了这层守卫会出现这样一条漏账链路：MergeMatcher 已按单号正确判为「新增」，
+        // 落到这里却又被指纹拦下判成重复 —— 同商户 3 分钟内的两笔同金额消费
+        // （自动售货机连买两瓶水、连扫两次码）后一笔就这样被静默丢弃。
+        val sql = duplicateProbeSql(txnNo.isNotEmpty())
+        val args = buildList {
+            add(amountHash)
+            add(merchantHash)
+            add(direction.code.toString())
+            add((occurredAt - dedupWindowMs).toString())
+            add((occurredAt + dedupWindowMs).toString())
+            if (txnNo.isNotEmpty()) add(txnNo)
+        }.toTypedArray()
+        db.readableDatabase.rawQuery(sql, args).use { return it.moveToFirst() }
     }
 
     /** 按平台交易单号判重（CSV 导入走这条，最可靠） */
@@ -280,5 +284,27 @@ class TransactionDao(private val db: LedgerDb) {
         private const val CANDIDATE_SQL =
             "SELECT id, amount_enc, direction, merchant_enc, occurred_at, txn_no, " +
                 "category_id, category_name, auto_classified, source_id FROM txn"
+
+        /**
+         * 指纹判重的探测语句（含单号守卫）。
+         *
+         * @param hasTxnNo 本条是否带官方交易单号。带单号时追加
+         *        `txn_no = '' OR txn_no = ?` —— 既有记录**有**单号且与本条不同，
+         *        就是可证明的两笔不同交易，不得判成重复。
+         *        这条守卫与 [MergeMatcher.orderNumbersCompatible] 同一语义，
+         *        两者必须同时存在：少了它，MergeMatcher 判出的「新增」会在这一层
+         *        被指纹重新吞掉，表现为同商户 3 分钟内第二笔同金额消费静默消失。
+         *
+         * 抽成函数是为了能在纯 JVM 单测里断言守卫存在（SQL 本身需真机才跑得起来，
+         * 但「守卫有没有被误删」不该等到真机才发现）。
+         */
+        internal fun duplicateProbeSql(hasTxnNo: Boolean): String = buildString {
+            append(
+                "SELECT 1 FROM txn WHERE amount_hash = ? AND merchant_hash = ? " +
+                    "AND direction = ? AND occurred_at BETWEEN ? AND ?"
+            )
+            if (hasTxnNo) append(" AND (txn_no = '' OR txn_no = ?)")
+            append(" LIMIT 1")
+        }
     }
 }

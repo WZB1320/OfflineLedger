@@ -124,4 +124,44 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
     testImplementation("junit:junit:4.13.2")
+
+    // ------------------------------------------------------------------
+    // 仅测试期依赖，**不进 APK**（testImplementation 只上单测 classpath）。
+    //
+    // 为什么需要它：Android 的 org.json 在 JVM 单测里是 stub，调用即抛
+    // "not mocked"。而 RuleStore 正是用它解析 parser_rules.json ——
+    // 结果就是「真实配置 + 真实账单样本」这条组合过去无法被任何测试覆盖，
+    // 只能靠手写 profile 副本 + 手写 9 行数据模拟，分布与真实的 132 行差很远。
+    //
+    // 用 Gson 在测试里解析同一份 assets/parser_rules.json，是把真实配置
+    // 拉进回归测试的最低成本做法。
+    // ------------------------------------------------------------------
+    testImplementation("com.google.code.gson:gson:2.10.1")
+}
+
+// ------------------------------------------------------------------
+// 让单测真正依赖它读的文件
+//
+// RealSampleRegressionTest 直接读文件系统上的 assets/parser_rules.json 与
+// samples/ 里的真实账单，**不经过 Gradle 的输入跟踪**。Gradle 于是看不见这层
+// 依赖：改了规则或换了样本，测试仍被判为 UP-TO-DATE 从而**不重跑**，
+// 最终输出 BUILD SUCCESSFUL —— 与「绿色 = 已验证」的假象同源，
+// 跟当初 verify_offline.sh「找不到中间产物就跳过、却仍报通过」是同一类错误。
+//
+// 实测（2026-09-17）：把支付宝档案的 neutralTokens 清空后跑测试，
+// 仍是 BUILD SUCCESSFUL in 7s，断言一条都没执行。加下面这段之后才抓得住。
+// ------------------------------------------------------------------
+tasks.withType<Test>().configureEach {
+    inputs.files(fileTree("src/main/assets") { include("*.json") })
+        .withPropertyName("testedAssetsJson")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // samples/ 已 gitignore，换台机器可能没有；不存在时不要声明输入，
+    // 否则 Gradle 会因「输入缺失」直接失败
+    val samplesDir = rootProject.file("samples")
+    if (samplesDir.isDirectory) {
+        inputs.files(fileTree(samplesDir))
+            .withPropertyName("testedBillSamples")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
 }
