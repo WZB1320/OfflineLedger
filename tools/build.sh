@@ -60,3 +60,20 @@ cd "$PROJ"
 echo "==> gradle $*  (工程: $PROJ)"
 echo "==> TEMP=$TEMP"
 "$GRADLE" "$@" --no-daemon
+
+# ---------------------------------------------------------------- 产物汇总
+# 把构建出的 APK 同步到 dist/，供侧载取用。
+#
+# 2026-09-17 踩到：dist/ 里还躺着上一轮的 app-offline-debug.apk（3748 KB），
+# 而新构建的产物在 app/build/outputs/apk/ 下。两者名字一样、大小不同，
+# 直接去 dist/ 拿包就会**装到旧版本**，而且从文件上完全看不出来。
+# 所以只要这次跑了 assemble，就把 dist/ 重刷一遍；只跑单测时不动它，
+# 免得把旧 APK 的 mtime 刷新成「刚构建的样子」，制造新的假象。
+case " $* " in
+  *assemble*)
+    mkdir -p dist
+    find app/build/outputs/apk -name '*.apk' -type f -exec cp -f {} dist/ \;
+    echo "==> 已同步产物到 dist/："
+    ls -l dist/*.apk | awk '{printf "    %s  %d KB\n", $NF, $5/1024}'
+    ;;
+esac
