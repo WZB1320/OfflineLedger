@@ -132,6 +132,61 @@ class MergeMatcherTest {
         assertEquals(2L, decision.target?.id)
     }
 
+    // ------------------------------------------- L2 的反向方向（2026-09-17 新增）
+    // 这两条覆盖的是「先补录历史账单、之后日常收通知」这个 P1 的典型用法。
+    // 修好之前，这里的每一条都会变成账本里的一笔重复记账。
+
+    @Test
+    fun `L2 反向——账单先入库、缺商户名的通知后到，判定为同一笔`() {
+        // 既有记录是账单（有商户名、有单号），新来的是通知（既没商户名也没单号）
+        val existingBill = incoming(merchant = "星巴克", txnNo = "WX001")
+        val lateNotice = notification(merchant = unknown, at = base)
+
+        val decision = MergeMatcher.decide(lateNotice, listOf(existingBill))
+        assertEquals(MergeMatcher.Level.LOOSE, decision.level)
+        assertEquals("星巴克", decision.target?.merchant)
+    }
+
+    @Test
+    fun `L2 反向——命中的通知没有可回填的内容，调用方据此判为重复丢弃`() {
+        val existingBill = incoming(merchant = "星巴克", txnNo = "WX001")
+        val lateNotice = notification(merchant = unknown, at = base)
+        val decision = MergeMatcher.decide(lateNotice, listOf(existingBill))
+
+        val plan = MergeMatcher.backfillPlan(
+            decision.target!!, lateNotice, categoryFromOfficialSeed = false
+        )
+        // 商户名、单号账单本来就有；分类是账单的来源不是通知能给的 → 无可补
+        assertNull(plan)
+    }
+
+    @Test
+    fun `L2 反向——通知自己带了商户名就不走宽松门，商户对不上照样各记各的`() {
+        // 缺商户名的那一方不存在，宽松门就不该开：否则「瑞幸」的通知会被并进「星巴克」的账单
+        val existingBill = incoming(merchant = "星巴克", txnNo = "WX001")
+        val noticeWithMerchant = notification(merchant = "瑞幸咖啡", at = base)
+        val decision = MergeMatcher.decide(noticeWithMerchant, listOf(existingBill))
+        assertEquals(MergeMatcher.Level.NEW, decision.level)
+    }
+
+    @Test
+    fun `L2 反向——来的是缺商户名的账单记录时仍不开门`() {
+        // 对称化只放宽「通知那一侧缺商户名」，绝不等于「谁缺都行」。
+        // 两条账单记录商户名都空是账单本身的问题，合并它们就是丢账。
+        val existingBill = incoming(merchant = "星巴克", txnNo = "WX001")
+        val anotherBill = incoming(merchant = "", txnNo = "WX002")
+        val decision = MergeMatcher.decide(anotherBill, listOf(existingBill))
+        assertEquals(MergeMatcher.Level.NEW, decision.level)
+    }
+
+    @Test
+    fun `L2 反向——超出三分钟窗口仍然不合并`() {
+        val existingBill = incoming(merchant = "星巴克", txnNo = "WX001")
+        val farNotice = notification(merchant = unknown, at = base - 4 * 60 * 1000L)
+        val decision = MergeMatcher.decide(farNotice, listOf(existingBill))
+        assertEquals(MergeMatcher.Level.NEW, decision.level)
+    }
+
     // ------------------------------------------------------------ L3
 
     @Test
@@ -232,5 +287,20 @@ class MergeMatcherTest {
         // 这两步落地后：账本里仍是 1 条，且商户名从「未识别商户」变成「星巴克」
         assertEquals("星巴克", plan!!.merchant)
         assertEquals("WX001", plan.txnNo)
+    }
+
+    @Test
+    fun `先导入账单后收通知——同一笔不会被记第二遍`() {
+        // ① 用户先补录了历史账单，这条已经在账本里了
+        val existing = listOf(incoming(amount = 25.0, merchant = "星巴克", txnNo = "WX001"))
+
+        // ② 之后某天，支付宝/微信推了一条不带商户名的通知（同一笔的迟到副本）
+        val lateNotice = notification(amount = 25.0, merchant = unknown, at = base)
+
+        val decision = MergeMatcher.decide(lateNotice, existing)
+        assertEquals(MergeMatcher.Level.LOOSE, decision.level)
+
+        // ③ 无可回填 → 调用方把这条通知当重复丢弃，账本保持 1 条
+        assertNull(MergeMatcher.backfillPlan(decision.target!!, lateNotice, false))
     }
 }

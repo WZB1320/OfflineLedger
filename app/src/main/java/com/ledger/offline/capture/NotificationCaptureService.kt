@@ -34,6 +34,9 @@ class NotificationCaptureService : NotificationListenerService() {
         super.onListenerConnected()
         // 预热解析规则，避免第一条通知进来时才做 IO
         runCatching { RuleStore.parserRules(this) }
+        // 留下「服务确实起来了」的心跳。系统不提供「监听是否活着」的查询，
+        // 界面只能靠这个心跳区分「已授权且在跑」与「已授权但服务死了」。
+        runCatching { CaptureStatus.markConnected(this) }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -41,6 +44,10 @@ class NotificationCaptureService : NotificationListenerService() {
         val pkg = notification.packageName ?: return
 
         val rule = runCatching { RuleStore.parserRules(this).sourceFor(pkg) }.getOrNull() ?: return
+
+        // 包名命中即记心跳，**不等解析成功**——我们要的是「通道活着」的证据，
+        // 不是「解析规则够用」的证据。规则过期时同样需要看到服务在正常收通知。
+        runCatching { CaptureStatus.markNotificationSeen(this) }
 
         val extras = notification.notification?.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()

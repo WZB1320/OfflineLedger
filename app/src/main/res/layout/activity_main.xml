@@ -38,6 +38,59 @@
             android:text="@string/permission_grant" />
     </LinearLayout>
 
+    <!--
+      已授权、但服务没被拉起时的告警。
+      这是最危险的一种状态：界面看起来一切正常，实际一笔都没在记。
+      系统不提供「服务是否活着」的查询，只能靠服务自己留的心跳来判断。
+    -->
+    <LinearLayout
+        android:id="@+id/serviceBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/surface"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/service_hint_title"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/service_hint_body"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnRestartListener"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/service_restart" />
+
+            <Button
+                android:id="@+id/btnWhitelist"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/service_whitelist" />
+        </LinearLayout>
+    </LinearLayout>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -62,6 +115,38 @@
             android:textColor="#FFFFFF"
             android:textSize="13sp"
             android:gravity="end" />
+    </LinearLayout>
+
+    <!--
+      常驻状态条：把「自动采集还在不在跑」「账单多久没导了」摆在首屏。
+      方案 §3.2 / §10 的要求——覆盖率与完整性必须对用户可见，
+      否则账目长期残缺而无人察觉，比功能少更伤。
+    -->
+    <LinearLayout
+        android:id="@+id/statusBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp">
+
+        <TextView
+            android:id="@+id/tvListenStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvImportStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
     </LinearLayout>
 
     <FrameLayout

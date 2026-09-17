@@ -42,40 +42,37 @@ object ServiceLocator {
         appContext = context.applicationContext
     }
 
-    /** 采集层 → 归类层 → 存储层的完整落库链路。通知服务与无障碍服务都走这里。 */
-    fun persist(parsed: ParsedTransaction, rawText: String = ""): Boolean = persistRecord(
-        amount = parsed.amount,
-        direction = parsed.direction,
-        merchantRaw = parsed.merchantRaw,
-        occurredAt = parsed.occurredAt,
-        sourceId = parsed.sourceId,
-        rawText = rawText
-    )
-
     /**
-     * 直接落库。CSV 导入走这条——因为账单文件里已经给了干净的
-     * 商户名、金额和收支方向，再拿去跑通知正则反而是画蛇添足。
-     */
-    fun persistRecord(
-        amount: Double,
-        direction: Direction,
-        merchantRaw: String,
-        occurredAt: Long,
-        sourceId: String,
-        txnNo: String = "",
-        rawText: String = "",
-        seedCategoryId: String? = null
-    ): Boolean {
-        val built = build(amount, direction, merchantRaw, occurredAt, sourceId, txnNo, rawText, seedCategoryId)
-        return dao.insert(built.txn)
-    }
-
-    /**
-     * 账单导入专用落库：**先融合、后判重**（方案 §4.3）。
+     * 采集层 → 归类层 → 存储层的完整落库链路。通知服务与无障碍服务都走这里。
      *
-     * 与 [persistRecord] 的区别：这里不直接插，而是先让 DAO 用四级匹配去找
-     * 白天那条通知记录，找到了就把商户名 / 单号 / 官方分类补回去，
-     * 找不到才新增。少了这一步，「通知缺商户名」的账目会与账单里的同一笔并存。
+     * 2026-09-17 修订：这里也走**融合**，不再直插。
+     * 早先只有账单导入走融合，通知走直插，理由是「通知是实时来的，撞不上已有记录」。
+     * 但那个理由只在「先通知后账单」的顺序下成立；一旦用户先补录了历史账单、
+     * 之后日常收通知（P1 的典型用法），同金额同方向的那条通知就会因为
+     * 商户名对不上而**再记一遍**。两条路必须共用同一套融合判据。
+     *
+     * 返回融合结论：真的新增 / 回填了既有记录 / 判定为重复并丢弃。
+     */
+    fun persist(parsed: ParsedTransaction, rawText: String = ""): TransactionDao.MergeOutcome =
+        mergeRecord(
+            amount = parsed.amount,
+            direction = parsed.direction,
+            merchantRaw = parsed.merchantRaw,
+            occurredAt = parsed.occurredAt,
+            sourceId = parsed.sourceId,
+            rawText = rawText
+        )
+
+    /**
+     * 落库唯一入口：**先融合、后判重**（方案 §4.3）。
+     *
+     * 不直接插，而是先让 DAO 用四级匹配去找同一笔的既有记录：
+     * 找到了就把商户名 / 单号 / 官方分类补回去（正向），
+     * 或者判定本次这条信息量更少、直接丢弃副本（反向），找不到才新增。
+     * 少了这一步，「通知缺商户名」的账目会与账单里的同一笔并存。
+     *
+     * 刻意不再提供「绕过融合直接插」的公开方法——那种捷径一旦存在，
+     * 迟早会有新的调用点图省事走上去，把这里辛苦拦住的重复记账重新放回来。
      */
     fun mergeRecord(
         amount: Double,

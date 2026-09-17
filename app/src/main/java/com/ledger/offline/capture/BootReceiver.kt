@@ -2,12 +2,15 @@ package com.ledger.offline.capture
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.ledger.offline.R
+import com.ledger.offline.ui.MainActivity
 
 /**
  * 重启后自动把通知监听服务拉起来。
@@ -22,6 +25,12 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) return
 
+        // 没授权通知使用权的话，发这条提醒毫无意义（服务本来就不会工作），
+        // 只会给用户添一条无法关闭的噪声通知
+        val granted = NotificationManagerCompat.getEnabledListenerPackages(context)
+            .contains(context.packageName)
+        if (!granted) return
+
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         val channelId = "ledger_status"
 
@@ -35,10 +44,19 @@ class BootReceiver : BroadcastReceiver() {
             )
         }
 
+        // 这里刻意不说「已恢复运行」——接收器只能知道「开机了」，
+        // 无法确认监听服务是否真的被系统绑上。说死了就是在骗用户，
+        // 而这类谎话的代价是：用户以为在自动记账，两个月后对账才发现全是空的。
+        val tap = PendingIntent.getActivity(
+            context, 0,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle(context.getString(R.string.app_name))
-            .setContentText("已恢复运行，继续监听支付通知")
+            .setContentText("已随开机启动。若长时间没有自动记账，点开应用查看采集状态")
+            .setContentIntent(tap)
             .setAutoCancel(true)
             .setOngoing(false)
             .build()

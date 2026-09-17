@@ -10,6 +10,24 @@
     <string name="permission_hint_body">本应用需要读取微信 / 支付宝的支付到账通知才能自动记账。\n所有数据仅保存在本机，应用没有网络权限，无法外传。</string>
     <string name="permission_grant">前往授权</string>
 
+    <string name="service_hint_title">通知监听没有真正生效</string>
+    <string name="service_hint_body">系统里已经授权了通知使用权，但监听服务没有被拉起来，收不到支付通知。\n建议先到系统设置把「离线记账」的通知使用权关掉再打开；再把它加入后台白名单 / 允许自启动，否则系统随时会把它清掉。</string>
+    <string name="service_restart">重新开启监听</string>
+    <string name="service_whitelist">加后台白名单</string>
+    <string name="whitelist_dialog_title">让它能在后台活下去</string>
+    <string name="whitelist_dialog_body">国产 ROM 默认会限制后台服务，通知监听被清掉后不会自动恢复。\n请在打开的页面里：允许自启动 / 允许后台运行、把电池策略设为「无限制」。\n找不到入口时会跳到应用详情页，从「电池 / 权限」里同样能设置。</string>
+
+    <string name="status_listen_off">监听：未开启</string>
+    <string name="status_listen_stalled">监听：已授权，但服务未运行</string>
+    <string name="status_listen_on">监听：运行中</string>
+    <string name="status_event_never">尚未监听到支付通知</string>
+    <string name="status_event_days">最近监听到支付通知 %1$d 天前</string>
+    <string name="status_import_never">尚未导入账单，账目可能不完整</string>
+    <string name="status_import_days">最近导入账单 %1$d 天前</string>
+    <string name="status_import_stale">最近导入账单 %1$d 天前，建议尽快导入对账</string>
+
+    <string name="capture_settings">采集设置</string>
+
     <string name="tab_flow">流水</string>
     <string name="tab_stats">统计</string>
 

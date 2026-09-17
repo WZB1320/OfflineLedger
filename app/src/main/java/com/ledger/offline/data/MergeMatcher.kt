@@ -16,9 +16,18 @@ import kotlin.math.abs
  *
  * ## 四级匹配（从严到宽，命中即停）
  * - L1 单号精确：有官方交易单号，最强证据（账单里几乎都有）
- * - L2 宽松指纹：金额 + 方向 + ±3min，**只对「没有商户名、且非账单来源」的记录开这扇门**
+ * - L2 宽松指纹：金额 + 方向 + ±3min，**只要「缺商户名的那一方」是通知来源就开这扇门**
  * - L3 完整指纹：金额 + 方向 + 商户名 + ±3min（通知里带了商户名时走这条）
  * - L4 新增
+ *
+ * ## L2 为什么必须对称（2026-09-17 修订）
+ * 最初 L2 只检查**既有记录**那一侧（`target.merchantUnknown && target.fromNotification`），
+ * 即只救得了「通知先落库、账单后到」。反过来的顺序——账单先入库、通知后到——
+ * 会掉进一个必然的坑：通知侧此时是**新来的那一条**，它缺商户名，
+ * 而既有账单记录有商户名，两边的 merchant_hash 永远对不上，
+ * 于是这条通知作为「新记录」被插进去，同一笔记两遍。
+ * 修法是把判据从「既有记录缺商户名」改成「**至少有一方是通知来源且该方没有商户名**」，
+ * 两个方向就都能被同一扇门罩住。
  *
  * ## 回填纪律
  * 只补空字段，且**分类只在「这条是自动分的」+「新分类来自平台官方分类列」时才覆盖**。
@@ -143,9 +152,22 @@ object MergeMatcher {
 
     /** L2：宽到可以救回「通知没带商户名」那批，但不能宽到把两笔不同交易并成一笔 */
     private fun looseHit(c: Candidate, incoming: Candidate): Boolean =
-        c.merchantUnknown && c.fromNotification &&
+        unknownSideIsFromNotification(c, incoming) &&
             sameAmount(c, incoming) && c.direction == incoming.direction &&
             inWindow(c, incoming) && orderNumbersCompatible(c, incoming)
+
+    /**
+     * L2 的开闸条件：**至少有一方是通知来源，且这一方没有商户名**。
+     *
+     * 刻意写成对称形式，而不是只看 [c]（既有记录）——
+     * 两个方向都会发生，且都必然导致重复记账：
+     *   - 通知先落库（缺商户名），账单后到 → 缺商户名的是 c
+     *   - 账单先入库（有商户名），通知后到 → 缺商户名的是 incoming
+     * 后一种在「先补录历史账单、再在日常收通知」的用法下是常态。
+     */
+    private fun unknownSideIsFromNotification(c: Candidate, incoming: Candidate): Boolean =
+        (c.merchantUnknown && c.fromNotification) ||
+            (incoming.merchantUnknown && incoming.fromNotification)
 
     /** L3：商户名也对得上，属于强证据 */
     private fun fullHit(c: Candidate, incoming: Candidate): Boolean =

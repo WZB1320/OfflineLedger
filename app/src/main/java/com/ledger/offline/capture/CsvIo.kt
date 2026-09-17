@@ -32,7 +32,13 @@ import java.util.Locale
  */
 object CsvIo {
 
-    private const val SOURCE_ID = "csv"
+    /**
+     * 来源标识**必须以 `bill_` 开头**：MergeMatcher 靠这个前缀区分
+     * 「账单导入」与「通知/无障碍」两类来源，决定宽松指纹那扇门给谁开。
+     * 前缀写错会让账单记录被误判成通知来源，等于把去重判据搞反。
+     * （2026-09-17 修：原值是 "csv"，属既有缺陷）
+     */
+    private const val SOURCE_ID = "bill_csv"
 
     data class ImportResult(val added: Int, val skipped: Int, val error: String? = null)
 
@@ -87,7 +93,7 @@ object CsvIo {
                 continue
             }
 
-            val ok = ServiceLocator.persistRecord(
+            val outcome = ServiceLocator.mergeRecord(
                 amount = amount,
                 direction = direction,
                 merchantRaw = merchant,
@@ -96,7 +102,7 @@ object CsvIo {
                 txnNo = txnNo,
                 rawText = goods
             )
-            if (ok) added++ else skipped++
+            if (outcome == TransactionDao.MergeOutcome.ADDED) added++ else skipped++
         }
 
         return ImportResult(added, skipped)
