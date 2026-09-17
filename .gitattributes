@@ -1,0 +1,39 @@
+# 行尾统一为 LF。
+#
+# 为什么加：本机 git 是 core.autocrlf=true，无 .gitattributes 时 git add 会警告
+# "LF will be replaced by CRLF the next time Git touches it"，索引与工作区行尾
+# 随检出漂移，产生无意义的 diff 噪音与「同一次提交在不同机器上内容不同」。
+#
+# ⚠️ 实测更正（2026-09-17，别照抄网上的说法）：
+#   **Git Bash 会吞掉行尾的 CR，CRLF 脚本在 Windows 上并不会炸。**
+#   实测：同一脚本 LF 版与 CRLF 版执行，输出逐字节相同（`VAR=[abc]\n`），
+#   变量里也没有混入 \r。
+#   所以这不是「本机潜伏 bug」，而是**可移植性问题**——
+#   在 Linux / macOS / CI 容器里，CRLF 的 shell 脚本会因 `\r` 报
+#   `bad interpreter` 或 `command not found`；git 的 diff/blame 也会被行尾噪音污染。
+#   个人项目将来若换机器或加 CI，这里就是省事的地方。
+#
+# 2026-09-17 加：此前无 .gitattributes，索引内恰好是 LF（靠编辑器默认值）。
+
+* text=auto eol=lf
+
+# 明确语言类型，便于 diff 与统计
+*.kt    text eol=lf
+*.kts   text eol=lf
+*.java  text eol=lf
+*.xml   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.sh    text eol=lf
+*.pro   text eol=lf
+
+# 二进制，禁止任何换行转换
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.apk   binary
+*.aab   binary
+*.jar   binary
+*.keystore binary
+*.jks   binary
