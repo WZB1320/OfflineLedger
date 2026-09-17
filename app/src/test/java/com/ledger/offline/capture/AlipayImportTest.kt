@@ -1,6 +1,8 @@
 package com.ledger.offline.capture
 
 import com.ledger.offline.parse.ImportProfile
+import com.ledger.offline.parse.PlaceholderPolicy
+import com.ledger.offline.parse.Policy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -53,7 +55,14 @@ class AlipayImportTest {
         seedMap = mapOf(
             "餐饮美食" to "food", "爱车养车" to "transport", "公共服务" to "living",
             "投资理财" to "investment", "信用借还" to "transfer"
-        )
+        ),
+        // 与 assets 一致：签名来自真实样本实测（7 笔占位行全部是「支付成功」+ 收/付款方式为空）
+        placeholder = PlaceholderPolicy(
+            action = Policy.PLACEHOLDER_DROP,
+            statusTokens = listOf("支付成功"),
+            paymentMustBeBlank = true
+        ),
+        refundPolicy = Policy.REFUND_COUNT_ONLY
     )
 
     /** 微信档案（精简）：只用于确认支付宝文件不会被误判成微信 */
@@ -180,32 +189,34 @@ class AlipayImportTest {
             // 社保缴费 → 公共服务（此前同样无映射）
             dataRow("2026-08-12 09:00:00", "公共服务", "国家税务总局上海市税务局", "社保缴费", "支出", "1492.00", "交易成功", "A002\t", "\t"),
             dataRow("2026-09-07 10:00:00", "餐饮美食", "星巴克", "拿铁", "支出", "33.00", "支付成功", "A003\t", "\t"),
-            // 平台全 0 元订单：金额解析成功但为 0，单列一支计数
-            dataRow("2026-09-03 09:27:35", "餐饮美食", "天**", "伊利舒化牛奶整箱", "支出", "0.00", "支付成功", "A004\t", "\t"),
             dataRow("2026-09-10 04:26:30", "投资理财", "余额宝", "余额宝-收益发放", "不计收支", "0.32", "交易成功", "A005\t", "\t"),
             dataRow("2026-09-10 08:12:06", "信用借还", "花呗", "花呗自动还款-2026年09月账单", "不计收支", "1616.03", "还款成功", "A006\t", "\t"),
             dataRow("2026-08-14 14:17:06", "退款", "坚朗**店", "退款-坚朗门窗五金件", "不计收支", "146.24", "退款成功", "A007\t", "\t"),
-            dataRow("2026-08-15 22:41:26", "投资理财", "余额宝", "余额宝-单次转入", "不计收支", "1028.00", "交易关闭", "A008\t", "\t")
+            dataRow("2026-08-15 22:41:26", "投资理财", "余额宝", "余额宝-单次转入", "不计收支", "1028.00", "交易关闭", "A008\t", "\t"),
+            // 真实占位行：0 元 + 支付成功 + 收/付款方式为空（淘宝担保交易下单未扣款）
+            dataRow("2026-09-03 09:27:35", "餐饮美食", "天**", "伊利舒化牛奶整箱", "支出", "0.00", "支付成功", "A004\t", "\t", payMethod = ""),
+            // 签名对不上：同样 0 元，但付款方式有值 → 不能当占位放过，必须报「无法解析」让人看见
+            dataRow("2026-09-04 11:00:00", "餐饮美食", "某店", "0 元赠品", "支出", "0.00", "支付成功", "A009\t", "\t", payMethod = "花呗")
         )
 
         val parsed = BillImporter.parseRows(rows, listOf(alipay))
 
         assertEquals("alipay_bill", parsed.profile?.id)
         assertEquals(23, parsed.headerRow)
-        assertEquals(8, parsed.totalRows)
+        assertEquals(9, parsed.totalRows)
         assertEquals(3, parsed.records.size)        // 中石化 295.03 / 社保 1492.00 / 星巴克 33.00
         // 注意：状态丢弃在方向判定之前执行，所以「不计收支 + 交易关闭」那行
         // 算进 droppedRefund 而不是 neutral——真实样本里 71 + 3 = 74 也遵循同一口径
         assertEquals(2, parsed.neutral)             // 余额宝收益、花呗还款
         assertEquals(2, parsed.droppedRefund)       // 退款成功、交易关闭
-        assertEquals(1, parsed.zeroAmount)          // 金额 0.00
-        assertEquals(0, parsed.droppedUnparsed)     // 没有一行是「解析不出来」
+        assertEquals(1, parsed.droppedPlaceholder)  // 签名命中的下单占位行
+        assertEquals(1, parsed.droppedUnparsed)     // 金额 0 但签名不匹配 → 规则没覆盖，要暴露出来
 
         // 笔数平衡：每一行都必须有归宿，不允许静默消失
         assertEquals(
-            8,
+            9,
             parsed.records.size + parsed.neutral + parsed.droppedRefund +
-                parsed.zeroAmount + parsed.droppedUnparsed
+                parsed.droppedPlaceholder + parsed.droppedUnparsed
         )
 
         assertEquals(1820.03, parsed.records.sumOf { it.amount }, 0.0001)
@@ -218,11 +229,39 @@ class AlipayImportTest {
         assertEquals("food", parsed.records.first { it.merchantRaw.contains("星巴克") }.seedCategoryId)
     }
 
+    /**
+     * 占位签名必须是**可证伪**的：放宽到「金额 0 就算占位」时，
+     * 任何 0 元异常都会被静默吞掉；收紧到实测签名后，只有真正符合
+     * 「支付成功 + 付款方式为空」的行才算占位，其它一律报「无法解析」。
+     */
+    @Test
+    fun `占位签名收紧了才拦得住规则没覆盖的0元行`() {
+        fun zeroRow(pay: String, status: String) = listOf(
+            "2026-09-03 09:27:35", "餐饮美食", "天**", "/", "牛奶整箱",
+            "支出", "0.00", pay, status, "A100\t", "\t", "", "", ""
+        )
+        val rows = preamble + listOf(header) + listOf(
+            zeroRow("", "支付成功"),          // 真占位
+            zeroRow("花呗", "支付成功"),      // 有付款方式 → 不是占位
+            zeroRow("", "交易成功")           // 状态不对 → 不是占位
+        )
+
+        val loose = alipay.copy(placeholder = PlaceholderPolicy(action = Policy.PLACEHOLDER_DROP))
+        val looseParsed = BillImporter.parseRows(rows, listOf(loose))
+        assertEquals(3, looseParsed.droppedPlaceholder)
+        assertEquals(0, looseParsed.droppedUnparsed)
+
+        val tightParsed = BillImporter.parseRows(rows, listOf(alipay))
+        assertEquals(1, tightParsed.droppedPlaceholder)
+        assertEquals(2, tightParsed.droppedUnparsed)
+    }
+
     // ------------------------------------------------------------ 工具
 
     /** 13 列，末列空——支付宝每行都以逗号结尾，split 出来会多一个空列 */
     private fun dataRow(
         time: String, category: String, party: String, product: String,
-        direction: String, amount: String, status: String, txn: String, merchantNo: String
-    ) = listOf(time, category, party, "/", product, direction, amount, "花呗", status, txn, merchantNo, "", "")
+        direction: String, amount: String, status: String, txn: String, merchantNo: String,
+        payMethod: String = "花呗"
+    ) = listOf(time, category, party, "/", product, direction, amount, payMethod, status, txn, merchantNo, "", "")
 }

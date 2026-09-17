@@ -10,13 +10,115 @@ import com.ledger.offline.data.model.Transaction
 class TransactionDao(private val db: LedgerDb) {
 
     /** 去重时间窗：同金额 + 同商户 + 同方向，落在 ±3 分钟内视为同一笔。 */
-    private val dedupWindowMs = 3 * 60 * 1000L
+    private val dedupWindowMs = MergeMatcher.MATCH_WINDOW_MS
+
+    enum class MergeOutcome { ADDED, BACKFILLED, DUPLICATE }
+
+    /**
+     * 双路融合入口：账单导入必须走这条，而不是直接 [insert]。
+     *
+     * 先按 [MergeMatcher] 的四级规则找既有记录：
+     *   - 找到 → 只补空字段（商户名 / 交易单号 / 官方分类），**绝不覆盖用户修正**；
+     *   - 找不到 → 正常新增。
+     *
+     * 这样「白天收通知记一笔、月底导账单又记一笔」才会被合并成一笔，
+     * 而不是在账本里留下两条。
+     *
+     * @param categoryFromOfficialSeed 新记录的分类是否**确实来自**平台官方分类列
+     *        （取 Classification.fromSeed，而不是「账单里有没有这一列」）。
+     * @param fallbackCategoryId 兜底分类 id；只有兜底分类才允许被官方种子替换，见 [MergeMatcher.backfillPlan]
+     */
+    fun mergeOrInsert(
+        txn: Transaction,
+        categoryFromOfficialSeed: Boolean = false,
+        fallbackCategoryId: String = "other"
+    ): MergeOutcome {
+        val incoming = MergeMatcher.Candidate(
+            amount = txn.amount,
+            direction = txn.direction,
+            merchant = txn.merchant,
+            occurredAt = txn.occurredAt,
+            txnNo = txn.txnNo,
+            categoryId = txn.categoryId,
+            categoryName = txn.categoryName,
+            autoClassified = txn.autoClassified,
+            sourceId = txn.sourceId
+        )
+        val candidates = loadCandidates(
+            FieldCipher.amountHash(txn.amount), txn.direction, txn.occurredAt, txn.txnNo
+        )
+        val target = MergeMatcher.decide(incoming, candidates).target
+            ?: return if (insert(txn)) MergeOutcome.ADDED else MergeOutcome.DUPLICATE
+
+        val plan = MergeMatcher.backfillPlan(target, incoming, categoryFromOfficialSeed, fallbackCategoryId)
+            ?: return MergeOutcome.DUPLICATE
+        return if (applyBackfill(target.id, plan)) MergeOutcome.BACKFILLED else MergeOutcome.DUPLICATE
+    }
+
+    private fun loadCandidates(
+        amountHash: String,
+        direction: Direction,
+        occurredAt: Long,
+        txnNo: String
+    ): List<MergeMatcher.Candidate> {
+        val out = LinkedHashMap<Long, MergeMatcher.Candidate>()
+        val rdb = db.readableDatabase
+
+        // 单号精确：不加时间窗——账单上的「交易时间」与通知时刻可能差很远（隔夜入账）
+        if (txnNo.isNotBlank()) {
+            rdb.rawQuery("$CANDIDATE_SQL WHERE txn_no = ?", arrayOf(txnNo)).use { c ->
+                while (c.moveToNext()) c.toCandidate().also { out[it.id] = it }
+            }
+        }
+        // 金额 + 方向 + 时间窗：走 idx_txn_match(amount_hash, direction, occurred_at)
+        rdb.rawQuery(
+            "$CANDIDATE_SQL WHERE amount_hash = ? AND direction = ? AND occurred_at BETWEEN ? AND ?",
+            arrayOf(
+                amountHash, direction.code.toString(),
+                (occurredAt - dedupWindowMs).toString(),
+                (occurredAt + dedupWindowMs).toString()
+            )
+        ).use { c ->
+            while (c.moveToNext()) c.toCandidate().also { out[it.id] = it }
+        }
+        return out.values.toList()
+    }
+
+    /** 回填：只写 plan 里非空的字段。金额、时间、方向永不改——那是识别同一笔的依据 */
+    private fun applyBackfill(id: Long, plan: MergeMatcher.Backfill): Boolean {
+        val values = ContentValues()
+        plan.merchant?.let {
+            values.put("merchant_enc", FieldCipher.encrypt(it))
+            values.put("merchant_hash", FieldCipher.merchantHash(it))
+        }
+        plan.txnNo?.let { values.put("txn_no", it) }
+        plan.categoryId?.let { values.put("category_id", it) }
+        plan.categoryName?.let { values.put("category_name", it) }
+        if (values.size() == 0) return false
+        return db.writableDatabase.update("txn", values, "id = ?", arrayOf(id.toString())) > 0
+    }
+
+    private fun Cursor.toCandidate() = MergeMatcher.Candidate(
+        id = getLong(0),
+        amount = FieldCipher.decrypt(getString(1)).toDoubleOrNull() ?: 0.0,
+        direction = Direction.of(getInt(2)),
+        merchant = FieldCipher.decrypt(getString(3)),
+        occurredAt = getLong(4),
+        txnNo = getString(5),
+        categoryId = getString(6),
+        categoryName = getString(7),
+        autoClassified = getInt(8) == 1,
+        sourceId = getString(9)
+    )
 
     /**
      * 写入一条记录。返回 true 表示真的新增，false 表示被去重拦下。
      *
      * 为什么必须去重：同一笔支付可能同时产生「微信支付通知」和「账单页无障碍事件」，
      * 两条来源的时间戳通常差几十毫秒到几秒。不去重用户会看到双份流水。
+     *
+     * 注意：账单导入不要直接用它，要走 [mergeOrInsert]——否则「通知缺商户名」
+     * 那批记录匹配不上，会重复记账。
      */
     fun insert(txn: Transaction): Boolean {
         val amountHash = FieldCipher.amountHash(txn.amount)
@@ -173,5 +275,10 @@ class TransactionDao(private val db: LedgerDb) {
     companion object {
         /** 统一金额格式，避免 25.0 / 25.00 / 25 在解密后比对不上 */
         fun formatAmount(v: Double): String = String.format(java.util.Locale.US, "%.2f", v)
+
+        /** 匹配候选的取数语句；列顺序必须与 Cursor.toCandidate() 一致 */
+        private const val CANDIDATE_SQL =
+            "SELECT id, amount_enc, direction, merchant_enc, occurred_at, txn_no, " +
+                "category_id, category_name, auto_classified, source_id FROM txn"
     }
 }

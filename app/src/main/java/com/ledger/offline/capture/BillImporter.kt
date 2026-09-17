@@ -3,6 +3,7 @@ package com.ledger.offline.capture
 import android.content.Context
 import android.net.Uri
 import com.ledger.offline.core.ServiceLocator
+import com.ledger.offline.data.TransactionDao
 import com.ledger.offline.data.model.Direction
 import com.ledger.offline.parse.ImportProfile
 import com.ledger.offline.parse.RuleStore
@@ -38,22 +39,26 @@ object BillImporter {
         val headerRow: Int = -1,
         val totalRows: Int = 0,
         val added: Int = 0,
+        /** 与既有通知记录合并、并补齐字段的笔数（不是新增，但也不是重复） */
+        val merged: Int = 0,
         val duplicated: Int = 0,
         val neutral: Int = 0,
         val droppedRefund: Int = 0,
-        val zeroAmount: Int = 0,
+        val droppedPlaceholder: Int = 0,
         val droppedUnparsed: Int = 0,
         val error: String? = null
     ) {
         fun summary(): String = when {
             error != null -> error
             else -> "识别为${platform}账单；共 ${totalRows} 行，入库 $added 笔" +
+                // 合并回填单列一支：用户需要知道「有些笔不是新增，而是补全了之前那条通知」
+                (if (merged > 0) "，与已有记录合并回填 $merged 笔" else "") +
                 (if (duplicated > 0) "，重复跳过 $duplicated 笔" else "") +
                 (if (neutral > 0) "，不计收支 $neutral 笔" else "") +
                 (if (droppedRefund > 0) "，退款/关闭 $droppedRefund 笔" else "") +
-                // 与「无法解析」分开报：零金额是平台真实的 0 元订单（如全额抵扣），
-                // 不是规则不够用；混在一起会把「笔数比账单少」误读成解析失败
-                (if (zeroAmount > 0) "，金额 0.00 未入账 $zeroAmount 笔" else "") +
+                // 与「无法解析」分开报：占位行是**已确认**的下单占位（担保交易，真付款行在
+                // 确认收货后另行生成），不是规则不够用；混在一起会把「笔数比账单少」误读成解析失败
+                (if (droppedPlaceholder > 0) "，下单占位(0元)未入账 $droppedPlaceholder 笔" else "") +
                 (if (droppedUnparsed > 0) "，无法解析丢弃 $droppedUnparsed 笔" else "")
         }
     }
@@ -87,13 +92,11 @@ object BillImporter {
 
             val sourceId = if (isZip(bytes)) SOURCE_XLSX else SOURCE_CSV
             var added = 0
+            var merged = 0
             var duplicated = 0
             for (rec in parsed.records) {
-                if (rec.txnNo.isNotEmpty() && ServiceLocator.dao.existsByTxnNo(rec.txnNo)) {
-                    duplicated++
-                    continue
-                }
-                val ok = ServiceLocator.persistRecord(
+                // 走「先融合、后判重」：账单里的这一笔，可能上午已经有一条缺商户名的通知记录
+                when (ServiceLocator.mergeRecord(
                     amount = rec.amount,
                     direction = rec.direction,
                     merchantRaw = rec.merchantRaw,
@@ -102,11 +105,14 @@ object BillImporter {
                     txnNo = rec.txnNo,
                     rawText = rec.text,
                     seedCategoryId = rec.seedCategoryId
-                )
-                if (ok) added++ else duplicated++
+                )) {
+                    TransactionDao.MergeOutcome.ADDED -> added++
+                    TransactionDao.MergeOutcome.BACKFILLED -> merged++
+                    TransactionDao.MergeOutcome.DUPLICATE -> duplicated++
+                }
             }
 
-            parsed.copy(added = added, duplicated = duplicated)
+            parsed.copy(added = added, merged = merged, duplicated = duplicated)
         } catch (t: Throwable) {
             ImportResult(error = "导入失败：${t.message ?: t.javaClass.simpleName}")
         } finally {
@@ -133,19 +139,20 @@ object BillImporter {
         val records: List<Record> = emptyList(),
         val neutral: Int = 0,
         val droppedRefund: Int = 0,
-        val zeroAmount: Int = 0,
+        val droppedPlaceholder: Int = 0,
         val droppedUnparsed: Int = 0,
         val error: String? = null
     ) {
-        fun copy(added: Int, duplicated: Int) = ImportResult(
+        fun copy(added: Int, merged: Int, duplicated: Int) = ImportResult(
             platform = profile?.displayName.orEmpty(),
             headerRow = headerRow,
             totalRows = totalRows,
             added = added,
+            merged = merged,
             duplicated = duplicated,
             neutral = neutral,
             droppedRefund = droppedRefund,
-            zeroAmount = zeroAmount,
+            droppedPlaceholder = droppedPlaceholder,
             droppedUnparsed = droppedUnparsed
         )
     }
@@ -170,7 +177,7 @@ object BillImporter {
         val records = ArrayList<Record>(dataRows.size)
         var neutral = 0
         var droppedRefund = 0
-        var zeroAmount = 0
+        var droppedPlaceholder = 0
         var droppedUnparsed = 0
 
         for (row in dataRows) {
@@ -192,9 +199,12 @@ object BillImporter {
             val occurredAt = parseEpochMillis(cell(FIELD_TIME))
             if (amount == null || amount <= 0.0 || occurredAt == null) {
                 // 分类计数，不让任何一行静默消失。
-                // 零金额单列一支：它是平台真实存在的 0 元订单（如全额抵扣、0 元试用），
-                // 金额解析本身没失败——混进「无法解析」会掩盖真正的规则缺陷。
-                if (occurredAt != null && cleanNumber(rawAmount) == 0.0) zeroAmount++ else droppedUnparsed++
+                // 0 元行单列一支，且**必须用配置里的签名确认过**才归入占位：
+                // 签名对不上说明是规则没覆盖（可能是新的文案/新列），那得报「无法解析」让人看见。
+                val isPlaceholder = occurredAt != null &&
+                    cleanNumber(rawAmount) == 0.0 &&
+                    profile.placeholder.signatureMatches(cell(FIELD_STATUS), cell(FIELD_PAYMENT))
+                if (isPlaceholder) droppedPlaceholder++ else droppedUnparsed++
                 continue
             }
 
@@ -220,7 +230,7 @@ object BillImporter {
             records = records,
             neutral = neutral,
             droppedRefund = droppedRefund,
-            zeroAmount = zeroAmount,
+            droppedPlaceholder = droppedPlaceholder,
             droppedUnparsed = droppedUnparsed
         )
     }
@@ -325,6 +335,7 @@ object BillImporter {
     private const val FIELD_COUNTERPARTY = "counterparty"
     private const val FIELD_PRODUCT = "product"
     private const val FIELD_STATUS = "status"
+    private const val FIELD_PAYMENT = "payMethod"
     private const val FIELD_TXN_NO = "txnNo"
     private const val FIELD_HEADING = "type"
     private const val FIELD_SEED = "seed"

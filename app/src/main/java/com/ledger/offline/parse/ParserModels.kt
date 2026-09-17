@@ -77,8 +77,51 @@ data class ImportProfile(
     /** 官方分类列名，空表示该平台没有 */
     val seedColumn: String,
     /** 官方分类值 → 本 App 的 categoryId */
-    val seedMap: Map<String, String>
+    val seedMap: Map<String, String>,
+    /** 0 元「下单占位行」的识别特征与处置 */
+    val placeholder: PlaceholderPolicy = PlaceholderPolicy(),
+    /** 退款/关闭行的处置口径，目前只支持 count_only，见 Policy.REFUND_COUNT_ONLY */
+    val refundPolicy: String = Policy.REFUND_COUNT_ONLY
 )
+
+/**
+ * 0 元「下单占位行」的处置规则。
+ *
+ * 背景（2026-09-17 用真实支付宝账单测出）：淘宝/天猫走**担保交易**——
+ * 下单时先落一行「交易创建」，金额 0.00、支付方式为空、状态却是「支付成功」；
+ * 确认收货后（实测恰好 10 天）才真实扣款，并生成**独立的第二行**（带真金额 + 花呗）。
+ * 所以那行 0 元不是消费，把它入账就是与 10 天后的付款行重复记账。
+ *
+ * 把「怎么认出它」也做成配置而不是写死 if：平台换个状态词或改成填支付方式，
+ * 只改 JSON 即可，不必重新出包。
+ */
+data class PlaceholderPolicy(
+    /** 命中后怎么办。目前只实现 drop */
+    val action: String = Policy.PLACEHOLDER_DROP,
+    /** 状态列必须包含其中之一（空列表 = 不校验状态） */
+    val statusTokens: List<String> = emptyList(),
+    /** 是否要求「收/付款方式」列为空 */
+    val paymentMustBeBlank: Boolean = false
+) {
+    /**
+     * 能否用这套签名断定「这行确实是下单占位」。
+     * 返回 false 时调用方会把它记进「无法解析」——那是**规则没覆盖到**的信号，
+     * 需要有别于「已确认的占位行」，不能混为一谈。
+     */
+    fun signatureMatches(status: String, payment: String): Boolean {
+        if (action != Policy.PLACEHOLDER_DROP) return false
+        if (statusTokens.isNotEmpty() && statusTokens.none { status.contains(it) }) return false
+        if (paymentMustBeBlank && payment.isNotBlank()) return false
+        return true
+    }
+}
+
+/** 账务口径常量。与 parser_rules.json 里的取值一一对应，改动需同步校验脚本 */
+object Policy {
+    const val PLACEHOLDER_DROP = "drop"
+    /** 退款不冲减支出，仅计数提示 —— 理由见 parser_rules.json 的 policies.refundNote */
+    const val REFUND_COUNT_ONLY = "count_only"
+}
 
 /** 解析结果：还没归类、还没落库的中间态 */
 data class ParsedTransaction(

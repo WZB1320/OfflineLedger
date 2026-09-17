@@ -120,6 +120,14 @@ object RuleStore {
                     seedMap[k] = m.optString(k)
                 }
             }
+            // placeholderPolicy：0 元「下单占位行」的识别签名（缺失则视为「不认占位」，
+            // 于是 0 元行会落进「无法解析」——把配置缺失暴露出来，而不是静默当成正常）
+            val phObj = o.optJSONObject("placeholderPolicy")
+            val placeholder = PlaceholderPolicy(
+                action = phObj?.optString("action", Policy.PLACEHOLDER_DROP) ?: Policy.PLACEHOLDER_DROP,
+                statusTokens = phObj?.optJSONArray("statusTokens").toStringList(),
+                paymentMustBeBlank = phObj?.optBoolean("paymentMustBeBlank", false) ?: false
+            )
             out += ImportProfile(
                 id = o.getString("id"),
                 displayName = o.optString("displayName", o.getString("id")),
@@ -131,7 +139,10 @@ object RuleStore {
                 neutralTokens = dirObj.optJSONArray("neutral").toStringList(),
                 dropStatusTokens = o.optJSONArray("dropStatusTokens").toStringList(),
                 seedColumn = seedObj?.optString("column").orEmpty(),
-                seedMap = seedMap
+                seedMap = seedMap,
+                placeholder = placeholder,
+                refundPolicy = o.optJSONObject("policies")?.optString("refund", Policy.REFUND_COUNT_ONLY)
+                    ?: Policy.REFUND_COUNT_ONLY
             )
         }
         return out

@@ -81,6 +81,67 @@ if PROFILE_ERRORS:
 print("=== importProfiles schema 校验通过（%d 份档案）===" % len(rules.get("importProfiles", [])))
 
 # ---------------------------------------------------------------------------
+# 账务口径的硬校验（placeholderPolicy / policies.refund）。
+#
+# 为什么值得单独写：这两条口径直接决定「钱算得对不对」，而它们此前是**隐式**的——
+# 0 元行之所以不入账，只是因为 parseAmount 恰好把 0 判成 null；退款不冲减，
+# 只是因为没人写过冲减逻辑。隐式行为没人守得住，改一行解析就会静默变口径。
+# 现在把它们显式写进配置，并把「实测得出的签名」固化成断言：
+# 谁想放宽签名，必须先拿出新的真实样本，而不是随手改个 JSON。
+# ---------------------------------------------------------------------------
+PLACEHOLDER_ACTIONS_IMPLEMENTED = ["drop"]
+REFUND_POLICIES_IMPLEMENTED = ["count_only"]
+# 支付宝侧签名取自 2026-09-17 真实样本实测（7 笔占位行：状态「支付成功」+ 收/付款方式为空）
+EXPECTED_ALIPAY_PLACEHOLDER = {"statusTokens": ["支付成功"], "paymentMustBeBlank": True}
+
+POLICY_ERRORS = []
+for p in rules.get("importProfiles", []):
+    pid = p.get("id", "?")
+    ph = p.get("placeholderPolicy")
+    if not isinstance(ph, dict):
+        POLICY_ERRORS.append(f"缺少 placeholderPolicy 对象（profile id={pid}）")
+    else:
+        if ph.get("action") not in PLACEHOLDER_ACTIONS_IMPLEMENTED:
+            POLICY_ERRORS.append(
+                f"placeholderPolicy.action={ph.get('action')!r} 未实现，Kotlin 端只认 "
+                f"{PLACEHOLDER_ACTIONS_IMPLEMENTED}（profile id={pid}）")
+        tokens = ph.get("statusTokens")
+        if not isinstance(tokens, list):
+            POLICY_ERRORS.append(f"placeholderPolicy.statusTokens 必须是数组（profile id={pid}）")
+        elif tokens and not ph.get("note"):
+            # 收紧签名必须有依据：否则等于用猜测代替样本，别人无法复核
+            POLICY_ERRORS.append(f"placeholderPolicy 收紧了签名却没写 note 依据（profile id={pid}）")
+        if "paymentMustBeBlank" in ph and not isinstance(ph["paymentMustBeBlank"], bool):
+            POLICY_ERRORS.append(f"placeholderPolicy.paymentMustBeBlank 必须是布尔（profile id={pid}）")
+
+    po = p.get("policies")
+    if not isinstance(po, dict):
+        POLICY_ERRORS.append(f"缺少 policies 对象（profile id={pid}）")
+        continue
+    if po.get("refund") not in REFUND_POLICIES_IMPLEMENTED:
+        POLICY_ERRORS.append(
+            f"policies.refund={po.get('refund')!r} 未实现，Kotlin 端只认 "
+            f"{REFUND_POLICIES_IMPLEMENTED}（profile id={pid}）")
+    if not po.get("refundNote"):
+        POLICY_ERRORS.append(f"policies.refundNote 为空，口径必须写明依据（profile id={pid}）")
+
+# 支付宝侧签名必须与实测一致——这是本次审计的核心结论，不许被无声放宽
+_alipay_ph = next((p.get("placeholderPolicy") or {}
+                   for p in rules.get("importProfiles", []) if p.get("id") == "alipay_bill"), {})
+for k, v in EXPECTED_ALIPAY_PLACEHOLDER.items():
+    if _alipay_ph.get(k) != v:
+        POLICY_ERRORS.append(
+            f"alipay_bill 的 placeholderPolicy.{k}={_alipay_ph.get(k)!r}，"
+            f"但真实样本实测为 {v!r}。放宽签名前必须先拿新样本验证")
+
+if POLICY_ERRORS:
+    print("=== 账务口径校验失败 ===")
+    for e in POLICY_ERRORS:
+        print("  [FAIL]", e)
+    sys.exit(1)
+print("=== 账务口径校验通过（占位行签名 + 退款只计数，均与实测一致）===")
+
+# ---------------------------------------------------------------------------
 # 官方分类种子（categorySeed.map）的两条硬校验。
 #
 # 为什么值得单独写：v5 之前支付宝的 map 里缺「爱车养车」「公共服务」，

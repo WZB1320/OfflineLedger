@@ -35,6 +35,9 @@ class LedgerDb(context: Context) :
         db.execSQL("CREATE INDEX idx_txn_time ON txn(occurred_at DESC)")
         db.execSQL("CREATE INDEX idx_txn_cat  ON txn(category_id, occurred_at DESC)")
         db.execSQL("CREATE INDEX idx_txn_dedup ON txn(amount_hash, merchant_hash, direction, occurred_at)")
+        // 合并回填的候选查询：`amount_hash = ? AND direction = ? AND occurred_at BETWEEN ? AND ?`。
+        // 已有的 idx_txn_dedup 把 merchant_hash 夹在中间，后两列没法用于范围扫描，故单建一条。
+        db.execSQL("CREATE INDEX idx_txn_match ON txn(amount_hash, direction, occurred_at)")
 
         // 用户修正记忆：改过一次分类，以后同一商户自动沿用
         db.execSQL(
@@ -57,6 +60,10 @@ class LedgerDb(context: Context) :
         if (oldVersion < 2) {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_txn_dedup ON txn(amount_hash, merchant_hash, direction, occurred_at)")
         }
+        if (oldVersion < 3) {
+            // 合并回填的候选查询索引。加索引不动数据，纯增量，无迁移风险。
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_txn_match ON txn(amount_hash, direction, occurred_at)")
+        }
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -66,6 +73,6 @@ class LedgerDb(context: Context) :
 
     companion object {
         const val DB_NAME = "ledger.db"
-        const val DB_VERSION = 2
+        const val DB_VERSION = 3
     }
 }

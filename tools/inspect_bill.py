@@ -273,6 +273,24 @@ def normalize_header(raw):
     return raw.strip().strip('"').replace('（', '(').replace('）', ')').replace(' ', '')
 
 
+def is_placeholder(status, payment, policy):
+    """0 元「下单占位行」的识别签名。镜像 ImportProfile.PlaceholderPolicy.signatureMatches。
+
+    真实依据（支付宝 2026-08-10~09-10 样本）：淘宝/天猫担保交易下单时先落一行
+    金额 0.00、收/付款方式为空、状态却是「支付成功」；确认收货后（实测恰好 10 天）
+    才真实扣款并另行生成一行。所以这行不是消费，入账就是重复记账。
+    签名对不上时不归入占位，而是报「无法解析」——那是规则没覆盖的信号，要让人看见。
+    """
+    if (policy or {}).get('action', 'drop') != 'drop':
+        return False
+    tokens = (policy or {}).get('statusTokens') or []
+    if tokens and not any(t in (status or '') for t in tokens):
+        return False
+    if (policy or {}).get('paymentMustBeBlank') and (payment or '').strip():
+        return False
+    return True
+
+
 def parse_direction(raw, profile):
     """顺序至关重要：先判不计收支，否则「不计收支」会被当成支出"""
     dt = profile.get('directionTokens', {})
@@ -351,10 +369,12 @@ def main():
 
     drop_status = profile.get('dropStatusTokens', [])
     seed_map = (profile.get('categorySeed') or {}).get('map', {}) or {}
+    ph_policy = profile.get('placeholderPolicy') or {}
+    refund_policy = (profile.get('policies') or {}).get('refund', 'count_only')
     # 空行不计入数据行：支付宝 csv 尾部带一个空行，微信 xlsx 也有零星空行
     data = [r for r in rows[hi + 1:] if any(c.strip() for c in r)]
     kept, dropped = [], []
-    neutral = refund = zero_amount = 0
+    neutral = refund = placeholder = 0
     seed_hit = 0
 
     for r in data:
@@ -377,9 +397,10 @@ def main():
         ts, tsrc = parse_time(g('time'))
         if amt is None:
             # 区分「解析不出」和「金额就是 0」——两者都丢弃，但含义完全不同：
-            # 前者是规则不够用（要修规则），后者是平台真实的 0 元订单（无法入账）
-            if clean_number(raw_amt) == 0:
-                zero_amount += 1
+            # 前者是规则不够用（要修规则），后者是已确认的下单占位行
+            if ts is not None and clean_number(raw_amt) == 0 and \
+                    is_placeholder(status, g('payMethod'), ph_policy):
+                placeholder += 1
             else:
                 dropped.append(('amount_unparsed:' + repr(raw_amt), r))
             continue
@@ -407,18 +428,18 @@ def main():
     if neutral:
         print('不计收支(跳过): %d 笔' % neutral)
     if refund:
-        print('退款/关闭(跳过): %d 笔' % refund)
-    if zero_amount:
-        print('金额为 0.00(未入账): %d 笔  ← 与平台自报笔数会差这么多，金额不受影响' % zero_amount)
+        print('退款/关闭(%s，不冲减支出): %d 笔' % (refund_policy, refund))
+    if placeholder:
+        print('下单占位行(0元,未入账): %d 笔  ← 与平台自报笔数会差这么多，金额不受影响' % placeholder)
     if seed_hit:
         print('官方分类种子命中: %d 笔' % seed_hit)
     if kept:
         times = sorted(k['time'] for k in kept)
         print('时间范围: %s ~ %s' % (fmt_time(times[0]), fmt_time(times[-1])))
     # 笔数平衡：任何一行都必须有归宿，不允许静默消失
-    accounted = len(kept) + neutral + refund + zero_amount + len(dropped)
-    print('笔数平衡: %d(入库) + %d(不计收支) + %d(退款/关闭) + %d(零金额) + %d(无法解析) = %d / 数据行 %d %s'
-          % (len(kept), neutral, refund, zero_amount, len(dropped), accounted, len(data),
+    accounted = len(kept) + neutral + refund + placeholder + len(dropped)
+    print('笔数平衡: %d(入库) + %d(不计收支) + %d(退款/关闭) + %d(下单占位) + %d(无法解析) = %d / 数据行 %d %s'
+          % (len(kept), neutral, refund, placeholder, len(dropped), accounted, len(data),
              'OK' if accounted == len(data) else '!! 不相等，有行被静默丢弃'))
     print()
 

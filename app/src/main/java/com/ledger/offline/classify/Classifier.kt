@@ -9,7 +9,15 @@ data class Classification(
     /** true = 引擎自动判定；false = 用户改过 */
     val auto: Boolean = true,
     /** true = 命中用户修正记忆 */
-    val fromMemory: Boolean = false
+    val fromMemory: Boolean = false,
+    /**
+     * true = 结果来自账单文件自带的官方分类列（而非自有关键词规则）。
+     *
+     * 这个来源必须如实回报：合并回填时只有「官方分类」才允许去补既有记录的空白分类，
+     * 因为 §4.4 定的优先级是 用户记忆 > 关键词规则 > 官方种子 > 兜底。
+     * 若不区分来源，就会让官方种子反向覆盖关键词命中的结果 —— 优先级被悄悄颠倒。
+     */
+    val fromSeed: Boolean = false
 )
 
 /**
@@ -60,7 +68,7 @@ class Classifier(
 
         // 4) 账单自带的官方分类兜底
         if (!seedCategoryId.isNullOrBlank()) {
-            rules.byId(seedCategoryId)?.let { return Classification(it.id, it.name) }
+            rules.byId(seedCategoryId)?.let { return Classification(it.id, it.name, fromSeed = true) }
         }
 
         // 5) 兜底
