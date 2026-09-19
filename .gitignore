@@ -12,6 +12,11 @@ captures/
 *.keystore
 *.jks
 
+# 构建产物目录。APK 已由 *.apk 覆盖，这里连带挡掉脚本在 dist/ 下可能产生的中间文件
+# （2026-09-19 踩坑：verify_launch.py 曾在 dist/ 下解包 dex，8 MB 的 classes.dex
+#   被 *.dex 未覆盖的空子提交进了仓库）
+dist/
+
 # 个人账单样本（真实数据，不进版本库）
 samples/
 

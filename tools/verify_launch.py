@@ -35,6 +35,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import zipfile
 import glob
 from pathlib import Path
 
@@ -212,17 +214,22 @@ def main() -> int:
                     )
 
     # ---------- 5/6. 类是否都在 dex 里 ----------
+    # 解包到**系统临时目录**：早先写在 APK 同级目录下，结果 8 MB 的 classes.dex
+    # 被当成工程文件提交进了版本库（.gitignore 只挡了 *.apk，没挡 *.dex）。
+    # 临时目录随 with 退出自动清理，且不再依赖外部 unzip 命令。
     dex_classes = set()
-    tmp = Path(apk).resolve().parent / "_launch_check_dex"
-    tmp.mkdir(exist_ok=True)
-    subprocess.run(["unzip", "-oq", wapk, "classes*.dex", "-d", str(tmp).replace("\\", "/")],
-                   capture_output=True)
-    for d in sorted(tmp.glob("classes*.dex")):
-        dump = out([dexdump, "-d", str(d).replace("\\", "/")])
-        for line in dump.splitlines():
-            m = re.search(r"Class descriptor\s+: 'L([^';]+);'", line)
-            if m:
-                dex_classes.add(m.group(1).replace("/", "."))
+    with tempfile.TemporaryDirectory(prefix="verify_launch_") as td:
+        tdp = Path(td)
+        with zipfile.ZipFile(apk) as z:
+            for n in z.namelist():
+                if re.fullmatch(r"classes\d*\.dex", n):
+                    z.extract(n, tdp)
+        for d in sorted(tdp.glob("classes*.dex")):
+            dump = out([dexdump, "-d", str(d).replace("\\", "/")])
+            for line in dump.splitlines():
+                m = re.search(r"Class descriptor\s+: 'L([^';]+);'", line)
+                if m:
+                    dex_classes.add(m.group(1).replace("/", "."))
 
     if app_name:
         if app_name not in dex_classes:
