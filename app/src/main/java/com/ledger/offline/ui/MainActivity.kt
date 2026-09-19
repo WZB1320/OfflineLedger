@@ -6,7 +6,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.View
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +17,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.DividerItemDecoration
+import com.ledger.offline.BuildConfig
 import com.ledger.offline.R
 import com.ledger.offline.capture.BillImporter
 import com.ledger.offline.capture.CaptureStatus
@@ -28,6 +32,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: TransactionAdapter
+
+    /** 一旦置位就停掉后续逻辑，界面停留在诊断视图上 */
+    private var startupFailed = false
 
     private val openCsv = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@registerForActivityResult
@@ -63,38 +70,79 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        try {
+            binding = ActivityMainBinding.inflate(layoutInflater)
+            setContentView(binding.root)
 
-        adapter = TransactionAdapter(emptyList()) { txn -> showCategoryPicker(txn) }
-        binding.recycler.layoutManager = LinearLayoutManager(this)
-        binding.recycler.addItemDecoration(DividerItemDecoration(this, DividerItemDecoration.VERTICAL))
-        binding.recycler.adapter = adapter
+            adapter = TransactionAdapter(emptyList()) { txn -> showCategoryPicker(txn) }
+            binding.recycler.layoutManager = LinearLayoutManager(this)
+            binding.recycler.addItemDecoration(DividerItemDecoration(this, DividerItemDecoration.VERTICAL))
+            binding.recycler.adapter = adapter
 
-        binding.btnGrant.setOnClickListener { openListenerSettings() }
-        binding.btnRestartListener.setOnClickListener { openListenerSettings() }
-        binding.btnWhitelist.setOnClickListener { showWhitelistGuide() }
-        // 状态条本身就是入口：点它能看到「到底哪一环没在跑」
-        binding.statusBar.setOnClickListener { showCaptureSettings() }
+            binding.btnGrant.setOnClickListener { openListenerSettings() }
+            binding.btnRestartListener.setOnClickListener { openListenerSettings() }
+            binding.btnWhitelist.setOnClickListener { showWhitelistGuide() }
+            // 状态条本身就是入口：点它能看到「到底哪一环没在跑」
+            binding.statusBar.setOnClickListener { showCaptureSettings() }
 
-        binding.btnImport.setOnClickListener {
-            openCsv.launch(
-                arrayOf(
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  // .xlsx
-                    "text/csv",
-                    "text/*",
-                    "*/*"
+            binding.btnImport.setOnClickListener {
+                openCsv.launch(
+                    arrayOf(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  // .xlsx
+                        "text/csv",
+                        "text/*",
+                        "*/*"
+                    )
                 )
-            )
-        }
-        binding.btnExport.setOnClickListener { createCsv.launch("ledger-backup.csv") }
+            }
+            binding.btnExport.setOnClickListener { createCsv.launch("ledger-backup.csv") }
 
-        askNotificationPermissionIfNeeded()
+            askNotificationPermissionIfNeeded()
+        } catch (t: Throwable) {
+            showStartupFailure("onCreate", t)
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        refresh()
+        if (startupFailed) return
+        try {
+            refresh()
+        } catch (t: Throwable) {
+            // 建库、Keystore 解密、规则加载都在这条路上，且都是真机才有的行为
+            showStartupFailure("onResume → refresh", t)
+        }
+    }
+
+    /**
+     * 启动期失败诊断视图。
+     *
+     * 为什么需要：真机「点开就闪退」时，屏幕上什么都不会留下；而本工程不可能接入
+     * 崩溃上报（离线是硬约束，数据也不该出户），只能靠人肉复现。于是干脆把未捕获
+     * 异常直接画在界面上——可长按选中复制，能截图发出来，比对着黑屏猜快得多。
+     *
+     * 注意这不是「吞掉异常」：诊断页出来后 [startupFailed] 会挡住后续逻辑，
+     * App 处于明确的失败态，而不是半死不活地继续跑。
+     */
+    private fun showStartupFailure(stage: String, t: Throwable) {
+        startupFailed = true
+        val detail = buildString {
+            append("启动失败\n\n")
+            append("位置：").append(stage).append("\n\n")
+            append(Log.getStackTraceString(t))
+            append("\n\n—— 环境 ——\n")
+            append("versionName = ").append(BuildConfig.VERSION_NAME).append('\n')
+            append("Android ").append(Build.VERSION.RELEASE)
+                .append("  API ").append(Build.VERSION.SDK_INT).append('\n')
+            append("机型 ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
+        }
+        val view = TextView(this).apply {
+            text = detail
+            textSize = 11f
+            setTextIsSelectable(true)
+            setPadding(32, 32, 32, 32)
+        }
+        setContentView(ScrollView(this).apply { addView(view) })
     }
 
     private fun refresh() {
