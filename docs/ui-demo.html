@@ -471,7 +471,10 @@
 
   <!-- ============ 色板与字号 ============ -->
   <h2 class="sec">色板与字号阶梯 <small>沿用现有 colors.xml，仅新增分类色</small></h2>
-  <p class="sec-note">基础色全部来自 <code>res/values/colors.xml</code>，一处未改。新增的只有「分类识别色」——11 个分类 + 未分类共 12 色。</p>
+  <p class="sec-note">基础色全部来自 <code>res/values/colors.xml</code>，一处未改。新增的只有「分类识别色」——
+    <b>10 个分类严格取自 <code>classify_rules.json</code></b>，加上它的 fallback「其他」与「未分类」虚线圆，共 12 色。
+    分类名与 id 与规则文件一一对应，拆 XML 时不必再二次翻译。
+    刻意避开与基础色同值：交通/医疗/教育原先分别撞上 brand / expense / income 三个基础色，已改。</p>
   <div class="grid-2">
     <div class="card">
       <h4 style="margin:0 0 10px;font-size:14px">基础色（现有）</h4>
@@ -489,18 +492,18 @@
       </div>
     </div>
     <div class="card">
-      <h4 style="margin:0 0 10px;font-size:14px">分类识别色（新增）</h4>
+      <h4 style="margin:0 0 10px;font-size:14px">分类识别色（新增）· 分类集取自 <code>classify_rules.json</code></h4>
       <div class="swatches">
         <div class="sw"><i style="background:#D9730D"></i><b>餐饮</b>#D9730D</div>
-        <div class="sw"><i style="background:#A0522D"></i><b>咖啡简餐</b>#A0522D</div>
-        <div class="sw"><i style="background:#185FA5"></i><b>交通</b>#185FA5</div>
+        <div class="sw"><i style="background:#3A7CA5"></i><b>交通</b>#3A7CA5</div>
         <div class="sw"><i style="background:#B4488A"></i><b>购物</b>#B4488A</div>
-        <div class="sw"><i style="background:#6B5B95"></i><b>居住</b>#6B5B95</div>
-        <div class="sw"><i style="background:#C0392B"></i><b>医疗</b>#C0392B</div>
+        <div class="sw"><i style="background:#0E8A7E"></i><b>生活缴费</b>#0E8A7E</div>
+        <div class="sw"><i style="background:#C75B6A"></i><b>医疗</b>#C75B6A</div>
         <div class="sw"><i style="background:#8E44AD"></i><b>娱乐</b>#8E44AD</div>
+        <div class="sw"><i style="background:#4E9A51"></i><b>教育</b>#4E9A51</div>
+        <div class="sw"><i style="background:#6B5B95"></i><b>住房</b>#6B5B95</div>
         <div class="sw"><i style="background:#5B7C99"></i><b>转账</b>#5B7C99</div>
-        <div class="sw"><i style="background:#E0567A"></i><b>红包</b>#E0567A</div>
-        <div class="sw"><i style="background:#1E8449"></i><b>教育</b>#1E8449</div>
+        <div class="sw"><i style="background:#A0522D"></i><b>投资理财</b>#A0522D</div>
         <div class="sw"><i style="background:#8A8A82"></i><b>其他</b>#8A8A82</div>
         <div class="sw"><i style="background:#fff;border:1.5px dashed #B45309"></i><b>未分类</b>虚线圆</div>
       </div>
@@ -583,7 +586,7 @@
 
           <div class="group-head"><span>9月20日 周日</span><span>支出 ¥206.00</span></div>
           <div class="row" data-k="expense">
-            <span class="dot" style="background:#185FA5"></span>
+            <span class="dot" style="background:#3A7CA5"></span>
             <div class="rmain">
               <div class="merchant">滴滴出行</div>
               <div class="meta">08:05 · 交通 · 支付宝</div>
@@ -617,10 +620,10 @@
             <div class="amt e">-¥12.80</div>
           </div>
           <div class="row" data-k="expense">
-            <span class="dot" style="background:#6B5B95"></span>
+            <span class="dot" style="background:#0E8A7E"></span>
             <div class="rmain">
               <div class="merchant">中国移动</div>
-              <div class="meta">10:00 · 居住 · 支付宝</div>
+              <div class="meta">10:00 · 生活缴费 · 支付宝</div>
             </div>
             <div class="amt e">-¥33.00</div>
           </div>
@@ -645,17 +648,16 @@
           </div>
           <div class="catgrid">
             <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
-            <div class="cat"><i style="background:#A0522D"></i>咖啡简餐</div>
-            <div class="cat"><i style="background:#185FA5"></i>交通</div>
+            <div class="cat"><i style="background:#3A7CA5"></i>交通</div>
             <div class="cat"><i style="background:#B4488A"></i>购物</div>
-            <div class="cat"><i style="background:#6B5B95"></i>居住</div>
-            <div class="cat"><i style="background:#C0392B"></i>医疗</div>
+            <div class="cat"><i style="background:#0E8A7E"></i>生活缴费</div>
+            <div class="cat"><i style="background:#C75B6A"></i>医疗</div>
             <div class="cat"><i style="background:#8E44AD"></i>娱乐</div>
+            <div class="cat"><i style="background:#4E9A51"></i>教育</div>
+            <div class="cat"><i style="background:#6B5B95"></i>住房</div>
             <div class="cat"><i style="background:#5B7C99"></i>转账</div>
-            <div class="cat"><i style="background:#E0567A"></i>红包</div>
-            <div class="cat"><i style="background:#1E8449"></i>教育</div>
+            <div class="cat"><i style="background:#A0522D"></i>投资理财</div>
             <div class="cat"><i style="background:#8A8A82"></i>其他</div>
-            <div class="cat"><i style="background:#8A8A82"></i>新增…</div>
           </div>
           <div class="acts">
             <div class="btn ghost" data-close="sheet1">仅改这一笔</div>
@@ -698,18 +700,17 @@
 
           <div class="catwrap">
             <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
-            <div class="cat"><i style="background:#A0522D"></i>咖啡简餐</div>
-            <div class="cat"><i style="background:#185FA5"></i>交通</div>
-          <div class="cat"><i style="background:#B4488A"></i>购物</div>
-          <div class="cat"><i style="background:#6B5B95"></i>居住</div>
-          <div class="cat"><i style="background:#C0392B"></i>医疗</div>
-          <div class="cat"><i style="background:#8E44AD"></i>娱乐</div>
-          <div class="cat"><i style="background:#5B7C99"></i>转账</div>
-          <div class="cat"><i style="background:#E0567A"></i>红包</div>
-          <div class="cat"><i style="background:#1E8449"></i>教育</div>
-          <div class="cat"><i style="background:#8A8A82"></i>其他</div>
-          <div class="cat"><i style="background:#8A8A82"></i>新增…</div>
-        </div>
+            <div class="cat"><i style="background:#3A7CA5"></i>交通</div>
+            <div class="cat"><i style="background:#B4488A"></i>购物</div>
+            <div class="cat"><i style="background:#0E8A7E"></i>生活缴费</div>
+            <div class="cat"><i style="background:#C75B6A"></i>医疗</div>
+            <div class="cat"><i style="background:#8E44AD"></i>娱乐</div>
+            <div class="cat"><i style="background:#4E9A51"></i>教育</div>
+            <div class="cat"><i style="background:#6B5B95"></i>住房</div>
+            <div class="cat"><i style="background:#5B7C99"></i>转账</div>
+            <div class="cat"><i style="background:#A0522D"></i>投资理财</div>
+            <div class="cat"><i style="background:#8A8A82"></i>其他</div>
+          </div>
 
         <div class="amountbox">
           <div class="lb">金额</div>
@@ -740,7 +741,8 @@
         自上而下就是录入顺序：<b>支出/收入 → 分类 → 金额 → 备注 → 保存</b>。三个刻意的决定：
         ① <b>分类放在金额之上</b>：先选分类能让手指先离开键盘区，之后纯输数字不被打断；
         ② <b>自建数字键盘</b>，右下角「保存」固定占一列，输入路径三次点击完成，系统键盘全程不弹出、不遮挡分类；
-        ③ 分类用 2 行横滑网格，10 个分类一屏放得下。
+        ③ 分类用 2 行横滑网格，10 个分类 + fallback「其他」共 11 项，一屏放得下。
+           这套分类与 <code>classify_rules.json</code> 逐项对齐，落地时直接读同一份规则文件渲染，不必在 UI 层再抄一份名单。
         <em>支出/收入的分段按钮直接用 expense 红 / income 绿</em>，与列表金额配色同源，不用额外学习。
       </div>
     </div>
@@ -781,34 +783,41 @@
             <div class="track"><i style="width:25.2%;background:#B4488A"></i></div>
           </div>
           <div class="bar">
-            <div class="l1"><span class="nm"><span class="dot" style="background:#6B5B95;margin:0"></span>居住</span>
+            <div class="l1"><span class="nm"><span class="dot" style="background:#6B5B95;margin:0"></span>住房</span>
               <span class="amt">¥610.00<span class="pct">18.6%</span></span></div>
             <div class="track"><i style="width:18.6%;background:#6B5B95"></i></div>
           </div>
           <div class="bar">
-            <div class="l1"><span class="nm"><span class="dot" style="background:#185FA5;margin:0"></span>交通</span>
+            <div class="l1"><span class="nm"><span class="dot" style="background:#3A7CA5;margin:0"></span>交通</span>
               <span class="amt">¥318.40<span class="pct">9.7%</span></span></div>
-            <div class="track"><i style="width:9.7%;background:#185FA5"></i></div>
+            <div class="track"><i style="width:9.7%;background:#3A7CA5"></i></div>
           </div>
           <div class="bar">
-            <div class="l1"><span class="nm"><span class="dot hollow" style="margin:0"></span>未分类</span>
+            <div class="l1"><span class="nm"><span class="dot hollow" style="margin:0"></span>未分类（无商户名）</span>
               <span class="amt" style="color:#B45309">¥206.00<span class="pct">6.3%</span></span></div>
             <div class="track"><i style="width:6.3%;background:#B45309"></i></div>
           </div>
           <div class="bar">
-            <div class="l1"><span class="nm"><span class="dot" style="background:#8A8A82;margin:0"></span>其他</span>
+            <div class="l1"><span class="nm"><span class="dot" style="background:#8A8A82;margin:0"></span>其他（有商户·未命中）</span>
               <span class="amt">¥178.50<span class="pct">5.4%</span></span></div>
             <div class="track"><i style="width:5.4%;background:#8A8A82"></i></div>
+          </div>
+          <div class="normcard" style="margin:10px 0 0">
+            这两项在库里 <code>category_id</code> <b>都是 <code>other</code></b> —— 没有商户名必然关键词不命中，
+            所以<b>未分类 ⊂ 其他</b>，两者是包含关系、不是并列。<br>
+            <code>merchant</code> 是密文（<code>merchant_enc</code>），SQL 做不了 <code>GROUP BY</code>；
+            落地要先按 <code>category_id</code> 取出来，再用 <code>merchant_hash = HMAC(未识别商户)</code> 在内存里拆。
+            因此 §9 的「未分类占比」验收线<b>必须按合并口径算</b>（见下方验收卡），只算下面那一条会漏掉一半。
           </div>
         </div>
 
         <div class="checkcard">
-          <div class="ct"><span><b>未分类占比</b> 3 笔</span><span class="ok">达标 ✓</span></div>
+          <div class="ct"><span><b>未分类占比</b>（合并口径）¥384.50 · 11.7%</span><span class="ok">达标 ✓</span></div>
           <div class="line">
-            <i style="width:42%"></i>
+            <i style="width:78%"></i>
             <span class="mark" style="left:100%"></span>
           </div>
-          <div class="foot">6.3% ／ 验收线 15%（红线在条的最右侧）　·　条形按「占验收线的比例」绘制，一眼看出还有多少余量</div>
+          <div class="foot">= 未分类 206.00 + 其他 178.50，同为 <code>category_id = other</code> ／ 验收线 15%（红线在条的最右侧）　·　条形按「占验收线的比例」绘制，一眼看出还有多少余量</div>
         </div>
 
         <div class="trend">
@@ -828,6 +837,9 @@
         下方两张卡是刻意的：<b>「未分类占比 vs 15% 验收线」</b>与<b>「修正次数环比」</b>搬自方案 §9 的量化验收条款，
         让验收标准在界面上可见，而不是靠月底跑脚本。
         <br><em>数据自检</em>：6 项分类金额合计 = ¥3,281.40，与顶部支出对得上；百分比合计 100.0%。
+        分类名取自 <code>classify_rules.json</code>。
+        <br><em>口径</em>：「未分类（无商户名）」与「其他（有商户·未命中）」在库里<b>同为 <code>category_id = other</code></b>，
+        条形图为了表达「该补商户名」把它们拆开画，但验收卡必须按<b>合并口径</b>算，别直接拿这 6 项去画饼图。
       </div>
     </div>
 
@@ -857,18 +869,18 @@
         <div class="list" style="flex:1">
           <div class="group-head"><span>9月21日 周一</span><span>支出 ¥86.50</span></div>
           <div class="row">
-            <span class="dot" style="background:#D9730D"></span>
+            <span class="dot" style="background:#8A8A82"></span>
             <div class="rmain">
-              <div class="merchant">星巴克(XX广场店)</div>
-              <div class="meta">09:12 · 餐饮 · 微信</div>
+              <div class="merchant">Peet's Coffee(XX广场店)</div>
+              <div class="meta">09:12 · 其他 · 微信</div>
             </div>
             <div class="amt e">-¥32.00</div>
           </div>
           <div class="row" style="background:#F2F7FC">
-            <span class="dot" style="background:#8E44AD"></span>
+            <span class="dot" style="background:#8A8A82"></span>
             <div class="rmain">
-              <div class="merchant">星巴克(XX广场店)</div>
-              <div class="meta">09:12 · 餐饮 · 微信</div>
+              <div class="merchant">Peet's Coffee(XX广场店)</div>
+              <div class="meta">09:12 · 其他 · 微信</div>
             </div>
             <div class="amt e">-¥32.00</div>
           </div>
@@ -885,27 +897,27 @@
         <div class="dim show"></div>
         <div class="sheet show">
           <div class="handle"></div>
-          <h3>把「星巴克(XX广场店)」归到哪一类？</h3>
-          <div class="qs">当前：餐饮（关键词规则命中）</div>
+          <h3>把「Peet's Coffee(XX广场店)」归到哪一类？</h3>
+          <div class="qs">当前：其他（未命中关键词，落到 fallback）</div>
 
           <div class="normcard">
-            归一后记为该商户：<b>星巴克</b><br>
-            分店后缀已自动去掉。此后<b>所有「星巴克」消费自动归到「咖啡简餐」</b>，不用再手动改。
+            归一后记为该商户：<b>Peet's Coffee</b><br>
+            分店后缀已自动去掉；规则关键词是中文，纯英文商户名命不中，所以落到 fallback「其他」。
+            此后<b>所有「Peet's Coffee」消费自动归到「餐饮」</b>，不用再手动改。
           </div>
 
           <div class="catgrid">
-            <div class="cat"><i style="background:#D9730D"></i>餐饮</div>
-            <div class="cat on"><i style="background:#A0522D"></i>咖啡简餐</div>
-            <div class="cat"><i style="background:#185FA5"></i>交通</div>
+            <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
+            <div class="cat"><i style="background:#3A7CA5"></i>交通</div>
             <div class="cat"><i style="background:#B4488A"></i>购物</div>
-            <div class="cat"><i style="background:#6B5B95"></i>居住</div>
-            <div class="cat"><i style="background:#C0392B"></i>医疗</div>
+            <div class="cat"><i style="background:#0E8A7E"></i>生活缴费</div>
+            <div class="cat"><i style="background:#C75B6A"></i>医疗</div>
             <div class="cat"><i style="background:#8E44AD"></i>娱乐</div>
+            <div class="cat"><i style="background:#4E9A51"></i>教育</div>
+            <div class="cat"><i style="background:#6B5B95"></i>住房</div>
             <div class="cat"><i style="background:#5B7C99"></i>转账</div>
-            <div class="cat"><i style="background:#E0567A"></i>红包</div>
-            <div class="cat"><i style="background:#1E8449"></i>教育</div>
+            <div class="cat"><i style="background:#A0522D"></i>投资理财</div>
             <div class="cat"><i style="background:#8A8A82"></i>其他</div>
-            <div class="cat"><i style="background:#8A8A82"></i>新增…</div>
           </div>
 
           <div class="acts">
@@ -1441,11 +1453,15 @@
     <div class="card constraint">
       <h4>落地顺序建议</h4>
       <ul>
-        <li><b>第零步（前置）：先定分类集以谁为准</b>。本稿统一后的 11 个分类与
-            <code>classify_rules.json</code> 的 10 个分类<b>集合不同</b>：本稿有「红包」「咖啡简餐」「居住」，
-            代码里对应的是「生活缴费」「投资理财」「住房」（且「红包」在代码里只是 <code>transfer</code>
-            的一个关键词、「咖啡」归 <code>food</code>）。<b>不先定就拆 XML，布局与规则文件会对不上。</b>
-            建议以代码为准——反向改规则文件要动分类 id 空间，并影响 merge 回填的 seed 优先级，代价高一个量级</li>
+        <li><b>第零步（已完成）：分类集以代码为准</b>。本稿的 10 个分类 + fallback「其他」现已与
+            <code>classify_rules.json</code> <b>逐项对齐</b>（顺序与 id 都一致）：删掉本稿自造的「红包」
+            「咖啡简餐」「居住」，换成代码里的「生活缴费」「投资理财」「住房」——「红包」在代码里只是
+            <code>transfer</code> 的一个关键词、「咖啡」归 <code>food</code>，都<b>不是独立分类</b>。
+            <br>顺带修掉三处：① 交通 / 医疗 / 教育原先分别<b>完全等于</b> brand / expense / income 三个基础色，
+            现已错开；② 分类网格里的「新增…」已移除——<code>RuleStore</code> 只有 <code>installParserRules</code>，
+            <b>没有 classify 写入口</b>，自建分类在当前代码里做不到，画进去只会让人误以为能落地；
+            ③ 屏 4 旧演示用的是「星巴克 → 咖啡简餐」，而「咖啡」本就是 <code>food</code> 的关键词，
+            该场景在代码里不成立，已换成「纯英文商户名没命中 → 用户修正并记住」</li>
         <li><b>第一步只做不加功能的改造</b>：底部导航 + 按日分组 + 点击修正 + 状态条压行。
             这几项不碰数据层，风险最低，改完就能看</li>
         <li><b>第二步做导入结果 Dialog</b>：纯 UI，也不碰数据层</li>
@@ -1462,6 +1478,8 @@
     文件完全自包含、零外部依赖，可直接离线打开（与 App 本身的离线约束一致）。
     <br>v0.2 相对 v0.1：新增屏 2（记一笔）、屏 5 改为可滚动 Dialog、各屏加底部导航、导入/导出入口迁移、阈值文案 35 天、
     新增「这次拍板新产生的问题」一节。
+    <br>v0.2.1：分类集改为<b>以代码为准</b>（与 <code>classify_rules.json</code> 逐项对齐）、修 3 处分类色与基础色同值、
+    移除代码不支持的「新增…」分类入口、修屏 4 演示场景在代码中不成立的问题、导入结果核对式补 neutral 项。
   </footer>
 
 </div>
