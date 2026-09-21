@@ -11,7 +11,7 @@ import org.junit.Test
  * 这两条判据都会直接决定界面上弹不弹告警，而弹错任何一边都有代价：
  *   - 该弹不弹 → 用户以为在自动记账，实际一笔没记，两个月后对账才发现（silent failure）
  *   - 不该弹乱弹 → 狼来了，用户学会无视告警，真出问题时也不再理会
- * 所以边界值（39/40/41 天）单独钉死。
+ * 所以边界值（34/35/36 天）单独钉死。
  */
 class CaptureStatusTest {
 
@@ -26,10 +26,21 @@ class CaptureStatusTest {
     }
 
     @Test
-    fun `导入超期的边界是 40 天`() {
-        assertFalse(CaptureStatus.Snapshot(lastImportAt = now - 39 * day).importStale(now))
-        assertFalse(CaptureStatus.Snapshot(lastImportAt = now - 40 * day).importStale(now))
-        assertTrue(CaptureStatus.Snapshot(lastImportAt = now - 41 * day).importStale(now))
+    fun `导入超期的边界是 35 天`() {
+        assertFalse(CaptureStatus.Snapshot(lastImportAt = now - 34 * day).importStale(now))
+        assertFalse(CaptureStatus.Snapshot(lastImportAt = now - 35 * day).importStale(now))
+        assertTrue(CaptureStatus.Snapshot(lastImportAt = now - 36 * day).importStale(now))
+    }
+
+    /**
+     * 阈值与常量必须绑在一起改。
+     * 直接断言常量本身，是为了防止「只改了常量、忘了改上面那三个边界值」——
+     * 那种情况下三个边界断言仍然会通过（因为它们都写成字面量 34/35/36），
+     * 测试却已经完全测不到真实行为，属于最隐蔽的假通过。
+     */
+    @Test
+    fun `阈值常量就是单测里钉住的那个数`() {
+        assertEquals(35L, CaptureStatus.IMPORT_STALE_DAYS.toLong())
     }
 
     @Test

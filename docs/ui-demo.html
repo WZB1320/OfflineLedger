@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>离线记账 · 前端设计稿 v0.1</title>
+<title>离线记账 · 前端设计稿 v0.2</title>
 <style>
   :root{
     --brand:#185FA5;
@@ -39,6 +39,7 @@
   .doc-head .meta{margin-top:10px;font-size:12px;color:var(--text2)}
   .doc-head .meta b{color:var(--text);font-weight:600}
   .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;background:var(--brand-soft);color:var(--brand);margin-right:6px}
+  .tag.new{background:var(--income);color:#fff}
 
   h2.sec{font-size:17px;margin:40px 0 6px;padding-left:10px;border-left:4px solid var(--brand)}
   h2.sec small{font-weight:400;font-size:12px;color:var(--text2);margin-left:8px}
@@ -47,7 +48,6 @@
   /* ---------- 通用卡片 ---------- */
   .card{background:var(--surface);border:1px solid var(--divider);border-radius:10px;padding:16px 18px}
   .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
-  .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
 
   /* ---------- 设计约束 ---------- */
   .constraint h4{margin:0 0 8px;font-size:14px}
@@ -77,7 +77,6 @@
     box-shadow:0 1px 0 rgba(0,0,0,.04);
     font-size:13px;color:var(--text);
   }
-  /* 安卓系统状态栏（示意，非本 App 内容） */
   .sysbar{height:22px;flex:none;display:flex;align-items:center;justify-content:space-between;
     padding:0 14px;font-size:10px;color:var(--text2);background:var(--surface)}
 
@@ -85,10 +84,11 @@
   .appbar{flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 16px 6px}
   .appbar .t{font-size:16px;font-weight:700;letter-spacing:-.2px}
   .appbar .act{font-size:12px;color:var(--brand);display:flex;align-items:center;gap:4px}
+  .appbar .act.dim{color:var(--text2)}
   .branddot{width:7px;height:7px;border-radius:50%;background:var(--income);display:inline-block}
   .branddot.stall{background:var(--expense)}
+  .branddot.off{background:#D0CDC5}
 
-  /* 月份切换 */
   .monthnav{flex:none;display:flex;align-items:center;justify-content:center;gap:14px;
     padding:0 16px 10px;font-size:13px;color:var(--text)}
   .monthnav span.arrow{color:var(--brand);font-size:14px;width:22px;text-align:center}
@@ -110,6 +110,7 @@
   .statusbar .l{display:flex;align-items:center;gap:5px;min-width:0}
   .statusbar .l .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .statusbar .r{color:var(--warn);white-space:nowrap;font-weight:600}
+  .statusbar .r.calm{color:var(--text2);font-weight:400}
   .statusbar .go{color:var(--text2)}
 
   /* 筛选 chips */
@@ -119,8 +120,11 @@
   .chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600}
   .chip .n{font-weight:700}
 
-  /* 流水列表 */
-  .list{flex:1;overflow-y:auto;background:var(--surface);scrollbar-width:thin}
+  /* 流水列表
+     min-height:0 是必需的：flex 子项默认 min-height:auto（=内容高度），
+     会让 overflow 失效——列表撑到内容全高时会把下面的底部导航挤出手机框。
+     同一个坑在 .dlg-body 上也存在，所以两处都显式写 0。 */
+  .list{flex:1;min-height:0;overflow-y:auto;background:var(--surface);scrollbar-width:thin}
   .group-head{display:flex;align-items:center;justify-content:space-between;
     padding:6px 16px;background:var(--bg);font-size:11px;color:var(--text2);
     position:sticky;top:0;z-index:2;border-bottom:1px solid var(--divider)}
@@ -134,35 +138,54 @@
   .merchant.miss{color:var(--warn)}
   .meta{margin-top:3px;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .meta .fix{color:var(--brand);font-weight:600}
+  .meta .mnu{color:var(--brand)}
   .amt{font-size:16px;font-weight:700;white-space:nowrap;letter-spacing:-.3px}
   .amt.e{color:var(--expense)}
   .amt.i{color:var(--income)}
 
-  /* 底部操作条 */
-  .bottombar{flex:none;display:flex;gap:8px;padding:8px;border-top:1px solid var(--divider);background:var(--surface)}
-  .btn{flex:1;text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
-  .btn.primary{background:var(--brand);color:#fff}
-  .btn.ghost{background:var(--surface);border:1px solid var(--divider);color:var(--text)}
-  .btn.warn{background:var(--surface);border:1px solid var(--expense);color:var(--expense)}
+  /* ---------- 底部导航（v0.2 新增） ---------- */
+  .navbar{flex:none;display:flex;align-items:flex-start;border-top:1px solid var(--divider);
+    background:var(--surface);padding:3px 0 7px}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:5px;
+    cursor:pointer;user-select:none}
+  .nav-item .ind{width:16px;height:3px;border-radius:2px;background:transparent}
+  .nav-item.on .ind{background:var(--brand)}
+  .nav-item .lb{font-size:11px;color:var(--text2)}
+  .nav-item.on .lb{color:var(--brand);font-weight:700}
+  .nav-item.add{padding-top:1px}
+  .pilladd{background:var(--brand);color:#fff;font-size:12px;font-weight:700;
+    padding:8px 15px;border-radius:999px;white-space:nowrap}
 
-  /* 告警/提示条 */
-  .banner{flex:none;padding:12px 16px;font-size:12px;background:var(--surface);border-bottom:1px solid var(--divider)}
-  .banner.info{background:#F2F7FC;border-left:3px solid var(--brand)}
-  .banner.alert{background:var(--danger-soft);border-left:3px solid var(--expense)}
-  .banner .bt{font-size:13px;font-weight:700;margin-bottom:5px}
-  .banner.alert .bt{color:var(--expense)}
-  .banner.info .bt{color:var(--brand)}
-  .banner .bb{color:var(--text2);line-height:1.55}
-  .banner .bact{display:flex;gap:8px;margin-top:9px}
-  .banner .bact .btn{padding:8px;font-size:12px}
+  /* ---------- 记一笔（v0.2 新增） ---------- */
+  .seg{flex:none;display:flex;margin:2px 16px 11px;border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+  .seg > div{flex:1;text-align:center;padding:8px;font-size:13px;color:var(--text2);cursor:pointer;user-select:none}
+  .seg > div.on{font-weight:700;color:#fff}
+  .seg > div.on.exp{background:var(--expense)}
+  .seg > div.on.inc{background:var(--income)}
 
-  /* 空态 */
-  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0 40px;text-align:center}
-  .empty .ic{width:52px;height:52px;border-radius:50%;border:1.5px dashed var(--divider);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:20px}
-  .empty .et{font-size:14px;color:var(--text)}
-  .empty .ed{font-size:12px;color:var(--text2);line-height:1.6}
+  .catwrap{flex:none;display:grid;grid-template-rows:repeat(2,auto);grid-auto-flow:column;
+    grid-auto-columns:60px;gap:7px;overflow-x:auto;padding:2px 16px 12px;scrollbar-width:thin}
+  .catwrap .cat{padding:7px 2px;font-size:11px}
 
-  /* ---------- 弹层（分类修正） ---------- */
+  .amountbox{flex:none;padding:9px 16px 12px;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider)}
+  .amountbox .lb{font-size:11px;color:var(--text2)}
+  .amountbox .num{font-size:33px;font-weight:700;letter-spacing:-1.2px;line-height:1.22;margin-top:1px}
+  .amountbox .num .cur{font-size:17px;font-weight:600;color:var(--text2);margin-right:3px;letter-spacing:0}
+
+  .fieldrow{flex:none;display:flex;align-items:center;gap:8px;padding:10px 16px;
+    border-bottom:1px solid var(--divider);font-size:13px}
+  .fieldrow .ph{color:var(--text2)}
+  .fieldrow .rt{margin-left:auto;font-size:11px;color:var(--brand);white-space:nowrap}
+
+  .kpad{flex:none;display:grid;grid-template-columns:repeat(3,1fr) 1.3fr;gap:1px;
+    background:var(--divider);border-top:1px solid var(--divider)}
+  .kpad .k{background:var(--surface);text-align:center;padding:12px 0;font-size:17px;font-weight:600;
+    cursor:pointer;user-select:none}
+  .kpad .k.del{color:var(--text2);font-weight:400}
+  .kpad .k.save{grid-row:1/5;background:var(--brand);color:#fff;display:flex;
+    align-items:center;justify-content:center;font-size:14px;font-weight:700}
+
+  /* ---------- 弹层 / 对话框 ---------- */
   .dim{position:absolute;inset:0;background:rgba(26,26,24,.42);display:none}
   .dim.show{display:block}
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);
@@ -178,6 +201,18 @@
   .cat i{display:block;width:9px;height:9px;border-radius:50%;margin:0 auto 5px}
   .cat.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:600}
   .sheet .acts{display:flex;gap:8px}
+
+  /* v0.2：导入结果改成可滚动 Dialog（替代整页） */
+  .dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:312px;max-height:76%;background:var(--surface);border-radius:14px;
+    display:flex;flex-direction:column;overflow:hidden}
+  .dlg-head{flex:none;display:flex;align-items:baseline;justify-content:space-between;
+    padding:14px 16px 11px;border-bottom:1px solid var(--divider)}
+  .dlg-head .dt{font-size:15px;font-weight:700}
+  .dlg-head .dx{font-size:12px;color:var(--text2);cursor:pointer}
+  /* 关键：只有这一层滚动，底部按钮固定不跟着滚 */
+  .dlg-body{flex:1;min-height:0;overflow-y:auto;padding:12px 16px 8px;scrollbar-width:thin}
+  .dlg-foot{flex:none;display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--divider)}
 
   /* ---------- 统计页 ---------- */
   .stat3{flex:none;display:flex;margin:0 16px 14px;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
@@ -212,15 +247,15 @@
   .trend .td{font-size:12px;color:var(--text2);line-height:1.5}
   .trend .td b{color:var(--text);display:block;font-size:13px;margin-bottom:2px}
 
-  /* ---------- 导入结果页 ---------- */
-  .kpis{flex:none;display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:0 16px 14px}
-  .kpi{border:1px solid var(--divider);border-radius:10px;padding:12px 13px}
+  /* ---------- 导入结果的块级元素（Dialog 内复用） ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:11px}
+  .kpi{border:1px solid var(--divider);border-radius:9px;padding:10px 11px}
   .kpi .k{font-size:11px;color:var(--text2)}
-  .kpi .v{font-size:23px;font-weight:700;letter-spacing:-.5px;line-height:1.25;margin-top:2px}
+  .kpi .v{font-size:21px;font-weight:700;letter-spacing:-.5px;line-height:1.25;margin-top:1px}
   .kpi.hl{border-color:var(--brand);background:#F4F9FD}
   .kpi.hl .v{color:var(--brand)}
   .kpi .d{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.45}
-  .srcline{flex:none;margin:0 16px 13px;border:1px solid var(--divider);border-radius:10px;padding:11px 13px;font-size:12px}
+  .srcline{border:1px solid var(--divider);border-radius:9px;padding:10px 12px;font-size:12px;margin-bottom:11px}
   .srcline .st{font-weight:700;font-size:13px;margin-bottom:4px}
   .srcline .sd{color:var(--text2);line-height:1.55}
   .srcline code{background:var(--bg);border:1px solid var(--divider);border-radius:3px;padding:0 4px;font-size:11px}
@@ -228,6 +263,9 @@
   .reason .rh{font-size:12px;font-weight:600;color:var(--warn);margin-bottom:5px}
   .reason .ri{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:3px 0}
   .reason .ri b{color:var(--text);font-weight:600}
+  .tipcard{border:1px solid var(--divider);border-left:3px solid var(--brand);border-radius:8px;
+    padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:11px;background:#FBFCFD}
+  .tipcard b{color:var(--text)}
 
   /* ---------- 设置页 ---------- */
   .setblk{margin:0 16px 14px}
@@ -248,18 +286,41 @@
   .pill.no{background:var(--danger-soft);color:var(--expense)}
   .pill.mid{background:var(--warn-soft);color:var(--warn)}
 
+  /* ---------- 空态 ---------- */
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0 34px;text-align:center}
+  .empty .ic{width:52px;height:52px;border-radius:50%;border:1.5px dashed var(--divider);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:20px}
+  .empty .et{font-size:14px;color:var(--text)}
+  .empty .ed{font-size:12px;color:var(--text2);line-height:1.6}
+  .empty .go{margin-top:6px;background:var(--brand);color:#fff;font-size:13px;font-weight:700;padding:10px 22px;border-radius:8px;cursor:pointer}
+
+  /* ---------- 警告条 ---------- */
+  .banner{flex:none;padding:12px 16px;font-size:12px;background:var(--surface);border-bottom:1px solid var(--divider)}
+  .banner.info{background:#F2F7FC;border-left:3px solid var(--brand)}
+  .banner.alert{background:var(--danger-soft);border-left:3px solid var(--expense)}
+  .banner .bt{font-size:13px;font-weight:700;margin-bottom:5px}
+  .banner.alert .bt{color:var(--expense)}
+  .banner.info .bt{color:var(--brand)}
+  .banner .bb{color:var(--text2);line-height:1.55}
+  .banner .bact{display:flex;gap:8px;margin-top:9px}
+  .btn{flex:1;text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+  .btn.primary{background:var(--brand);color:#fff}
+  .btn.ghost{background:var(--surface);border:1px solid var(--divider);color:var(--text)}
+  .btn.warn{background:var(--surface);border:1px solid var(--expense);color:var(--expense)}
+  .banner .bact .btn{padding:8px;font-size:12px}
+
   /* ---------- 评审清单 ---------- */
   table.review{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface)}
   table.review th,table.review td{border:1px solid var(--divider);padding:9px 11px;text-align:left;vertical-align:top}
   table.review th{background:var(--bg);font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap}
-  table.review td:first-child{width:34px;text-align:center;color:var(--text2);font-weight:700}
+  table.review td:first-child{width:36px;text-align:center;color:var(--text2);font-weight:700}
   table.review td b{font-weight:600}
   table.review td.mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--text2)}
+  table.review tr.done{background:#FCFDFC}
   .verdict{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
   .v-add{background:var(--brand-soft);color:var(--brand)}
   .v-chg{background:var(--warn-soft);color:var(--warn)}
-  .v-keep{background:#EFEDE7;color:var(--text2)}
   .v-ask{background:var(--danger-soft);color:var(--expense)}
+  .v-done{background:#EAF6EE;color:var(--income)}
 
   footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--divider);font-size:12px;color:var(--text2)}
 </style>
@@ -269,62 +330,127 @@
 
   <!-- ============ 页头 ============ -->
   <div class="doc-head">
-    <h1>离线记账 · 前端设计稿 <span style="font-size:14px;color:#6B6B66;font-weight:400">v0.1（HTML 评审用）</span></h1>
-    <div class="sub">用途：在写 XML 布局之前，先把「信息层级 / 待办可见性 / 修正可发现性 / 对账可核对性」四件事定下来。</div>
+    <h1>离线记账 · 前端设计稿 <span style="font-size:14px;color:#6B6B66;font-weight:400">v0.2</span></h1>
+    <div class="sub">v0.1 的 4 项待拍板已全部确认，本稿按确认结果改版，并列出「因这次拍板而新产生的」待决问题。</div>
     <div class="meta">
-      <span class="tag">可点可交互</span><span class="tag">零外部依赖</span><span class="tag">配色取自现有 colors.xml</span>
-      <br>对应方案：<b>《方案设计.md》v1.2</b> §3.2 §4.3 §4.4 §4.7 §8 §9　·　当前实现基线：<b>activity_main.xml</b>（banner + 汇总条 + 状态条 + 平铺列表 + 两个按钮）
+      <span class="tag">8 屏</span><span class="tag">可点可交互</span><span class="tag">零外部依赖</span>
+      <span class="tag new">v0.2 变更</span>
+      <br>对应方案：<b>《方案设计.md》v1.2</b> §3.2 §4.3 §4.4 §8 §9 §10
     </div>
   </div>
 
-  <!-- ============ 评审指引 ============ -->
-  <h2 class="sec">请重点评审这四件事 <small>其余细节可以慢慢调</small></h2>
-  <p class="sec-note">设计稿里的每一处改动都对应方案里的一条硬要求，不是审美偏好。下面四个点如果方向错了，布局再漂亮也白做。</p>
-  <div class="grid-2">
-    <div class="card constraint">
-      <h4>① 待办可见性 —— 让人看得见「该干什么」</h4>
+  <!-- ============ v0.2 变更 ============ -->
+  <h2 class="sec">v0.2 相对 v0.1 的四处改动 <small>全部来自你的拍板</small></h2>
+  <p class="sec-note">每一条都写清「改了什么」和「连带要动什么」——第 1 条的连带影响比它本身大得多。</p>
+  <table class="review">
+    <thead>
+      <tr><th>#</th><th>你的决定</th><th>设计稿落地方式</th><th>连带影响 / 代价</th><th>状态</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><b>增加手动记账</b></td>
+        <td>底部导航中间位「＋ 记一笔」，独立一屏（屏 2）：收支分段 → 分类网格 → 金额 → 备注 → 自建数字键盘（右下角固定「保存」）</td>
+        <td class="mono">这是<b>范围变更</b>，不是布局微调。方案 §1.1「做什么」原不含手记；且它要进同一张流水表，
+            必然触发落库判重语义的重新讨论 —— 见「新产生的问题」①。数据模型上需要新的 sourceId 前缀</td>
+        <td><span class="verdict v-done">已拍板</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><b>导入阈值统一修改</b></td>
+        <td>40 天 → <b>35 天</b>。已同步改动 5 处：代码常量、单测边界断言、方案文档 §3.2 / §8 P1 表 / §10 风险表</td>
+        <td class="mono">35 = 30 天月度导入周期 + 5 天宽限。理由：原 40 天是按季度节奏留的余量，
+            会让账目残缺最长拖到 40 天才响。屏 7 演示了阈值生效的样子（账单 38 天未导 → 转红）</td>
+        <td><span class="verdict v-done">已落地</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><b>tab 放底部</b></td>
+        <td>底部导航 3 格：<b>流水 ｜ ＋ 记一笔 ｜ 统计</b>。自绘（TextView + 3px 指示条），不引 BottomNavigationView</td>
+        <td class="mono">底栏被 tab 占用后，原本躺在底栏的「导入 / 导出」必须搬家：
+            <b>导入 → 顶栏右侧</b>（月度一次但极重要，首屏必须可见）；<b>导出备份 → 设置页「数据与隐私」</b>（低频）</td>
+        <td><span class="verdict v-done">已拍板</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><b>导入结果用可滚动 Dialog</b></td>
+        <td>不再是整页，改为居中 Dialog（宽 312、最高 76%）。<b>只有中间正文层滚动，底部两个按钮固定不跟着滚</b>（屏 5）</td>
+        <td class="mono">改动比整页小：不用新增 Activity，一个 Dialog + 自定义布局即可。
+            代价是宽度受限，KPI 从 v0.1 的横排 4 个改成 2×2</td>
+        <td><span class="verdict v-done">已拍板</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ============ 新产生的待决问题 ============ -->
+  <h2 class="sec">这次拍板新产生的问题 <small>3 项，第 ① 项必须先答复</small></h2>
+  <p class="sec-note">
+    「增加手动记账」看着只是加个页面，实际它把一条新的写入路径插进了 <b>§4.3 的先合并后判重</b>里。
+    不先把 ① 定下来就动手写，大概率重现当初「通知 + 账单双记账」那类缺陷——只是这次换成「手动 + 通知」。
+  </p>
+
+  <div class="card constraint" style="border-left:4px solid var(--expense)">
+    <h4 class="bad">① 手动记录要不要参与融合判重？（必须先定）</h4>
+    <p style="margin:6px 0 10px;color:var(--text2);font-size:13px">
+      手动记录<b>没有交易单号</b>，所以 §4.3 第一级「单号精确匹配」对它永远不命中。真正的问题是后面几级。
+    </p>
+    <table class="review" style="margin-bottom:12px">
+      <thead><tr><th>方案</th><th>后果</th><th>风险</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono" style="width:auto"><b>A. 不参与</b><br>手动记录直接插库</td>
+          <td>现金 / 线下场景通常不会有通知，所以平时既没收益也没损失</td>
+          <td><b>必然双记账</b>：P0~P1 的典型用法是「先补录历史账单、再日常收通知」。
+              用户若先手动补录某笔，之后账单或通知再来一遍，就会记两笔 —— 正是 §4.3 当初要消灭的缺陷类</td>
+        </tr>
+        <tr style="background:#FCFDFC">
+          <td class="mono" style="width:auto"><b>B. 参与（推荐）</b><br>走 mergeRecord</td>
+          <td>金额 + 商户 + 方向 ±3 分钟内相同即视为同一笔，自动合并，不会双记账。
+              L2 宽松门天然不开（它的闸门条件是「至少一方是通知来源且该方无商户名」，手动记录不满足）</td>
+          <td>3 分钟内两笔<b>同金额同商户</b>的合法手动记录，第二笔会被吞。
+              但同样的风险在两条通知之间本来就存在，不是手动记录独有的</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:0;font-size:12px;color:var(--text2)">
+      <b>我的建议：B</b>，并给手动记录独立前缀 <code>manual_</code>（按既有纪律，前缀语义决定判重方向，写错等于判据搞反）。
+      另外「手动记录」与列表里现有的「已手动修正」（分类修正）是两回事，文案上必须分开，否则用户会混淆。
+    </p>
+  </div>
+
+  <div class="grid-2" style="margin-top:16px">
+    <div class="card constraint" style="border-left:4px solid var(--warn)">
+      <h4>② 记一笔用自建数字键盘，还是系统数字键盘？</h4>
       <ul>
-        <li>未分类的笔数直接摆成 <b>筛选 chip 上的角标</b>，而不是藏在统计页里</li>
-        <li>未分类的行用 <b>虚线圆点 + 浅底色 + 蓝色「点此修正」</b>，一眼能扫出来</li>
-        <li>依据：§4.4 修正记忆是准确率的核心来源，用不起来就等于没有</li>
+        <li><b>自建（本稿采用的）</b>：一个 4×4 GridLayout + 约 100 行 Kotlin。
+            好处是右下角能固定「保存」，输入路径「输金额 → 点分类 → 保存」三次点击完成，系统键盘不会弹出来遮挡分类</li>
+        <li><b>系统键盘</b>：零成本（<code>inputType=numberDecimal</code>），但会顶起半个屏幕、盖住分类网格，保存按钮也得另找位置</li>
+        <li>记账 App 基本都选自建，因为输入速度就是这个功能的全部体验。但如果你觉得 100 行换这个不值，可以降级</li>
       </ul>
     </div>
-    <div class="card constraint">
-      <h4>② 修正可发现性 —— 长按是个好功能，但没人会猜</h4>
+    <div class="card constraint" style="border-left:4px solid var(--warn)">
+      <h4>③ 手动记录的分类与标记</h4>
       <ul>
-        <li>现状：改分类<b>只能长按</b>，界面零提示，等于隐藏功能</li>
-        <li>建议：<b>点击记录行 = 打开修正弹层</b>，长按保留为快捷方式</li>
-        <li>弹层必须回报「归一到哪个商户、此后自动应用」——这是记忆闭环的唯一反馈面</li>
-      </ul>
-    </div>
-    <div class="card constraint">
-      <h4>③ 对账可核对性 —— 丢弃必须看得见</h4>
-      <ul>
-        <li>现状：导入结果是一个 Toast，一闪而过，<b>丢弃几笔根本来不及看</b></li>
-        <li>建议：导入改为 <b>结果页</b>，四个数字（新增/回填/重复/丢弃）常驻</li>
-        <li>丢弃 &gt; 0 时<b>展开原因明细</b>。依据：§9「静默错误 = 0，所有丢弃必须计数且用户可见」</li>
-      </ul>
-    </div>
-    <div class="card constraint">
-      <h4>④ 覆盖率与准确率 —— 把验收线搬到界面上</h4>
-      <ul>
-        <li>统计页直接显示 <b>未分类占比 vs 15% 验收线</b>（§9 量化验收第 1 条）</li>
-        <li>直接显示 <b>月度手动修正次数环比</b>（§9 量化验收第 4 条）</li>
-        <li>好处：不用跑脚本，打开 App 就知道「越用越准」有没有发生</li>
+        <li>保存后回到「流水」并<b>把新记录滚到可见位置</b>（否则用户不知道存没存上）</li>
+        <li>列表 meta 建议显示「<b>手动</b>」（屏 1 的「全家便利店」那行就是这样），与既有的「已手动修正」区分开。
+            现在代码里只有 <code>autoClassified</code> 一个布尔，加「手动录入」要再区分一个维度</li>
+        <li>分类建议<b>必选</b>：手动录入时用户正看着这一笔，让他明确指定比让规则猜更准</li>
       </ul>
     </div>
   </div>
 
   <!-- ============ 设计约束 ============ -->
-  <h2 class="sec">设计约束 <small>这些红线决定了「什么能画、什么不能画」</small></h2>
+  <h2 class="sec">设计约束 <small>决定「什么能画、什么不能画」</small></h2>
   <p class="sec-note">设计稿必须能在 <b>AppCompat + 原生 View</b> 上落地。下面两条是评审时最容易忽略、但会导致整稿返工的约束。</p>
   <div class="grid-2">
     <div class="card constraint">
       <h4 class="bad">不能用的（会破坏零依赖 / 体积红线）</h4>
       <ul>
-        <li><b>Material Components</b> —— 引入即约 1 MB，直接吃掉半个预算。所以：无 FAB、无 Material Chip、无 BottomNavigationView、无 Material BottomSheet</li>
-        <li><b>任何图标库 / 自定义字体</b> —— 图标一律用「纯色圆点」或 vector drawable 自绘</li>
-        <li><b>阴影（elevation）表达层级</b> —— Material 才有成体系的阴影；这里用 <b>1px 边框 + 底色差</b>代替</li>
+        <li><b>Material Components</b> —— 引入即约 1 MB。所以：无 FAB、无 Material Chip、
+            <b>无 BottomNavigationView</b>（底部导航自绘）、无 Material BottomSheet</li>
+        <li><b>任何图标库 / 自定义字体</b> —— 图标一律用「纯色圆点」或 vector drawable 自绘。
+            底部导航因此<b>只有文字没有图标</b>，靠 3px 指示条 + 颜色区分选中态</li>
+        <li><b>阴影（elevation）表达层级</b> —— 用 <b>1px 边框 + 底色差</b>代替。Dialog 也不带投影</li>
         <li><b>网络资源</b>（字体/图标 CDN）—— App 本来就离线，设计稿也不该联网</li>
       </ul>
     </div>
@@ -333,16 +459,19 @@
       <ul>
         <li><b>圆角</b>：XML <code>shape drawable</code>，任意半径</li>
         <li><b>按压态</b>：<code>selector drawable</code> 换底色，替代 ripple</li>
-        <li><b>弹层</b>：<code>Dialog</code> + 底部 gravity 布局，自己搭一个 bottom sheet</li>
-        <li><b>自绘 tab</b>：两个 TextView + 下划线指示条，替代 TabLayout（省一个依赖）</li>
+        <li><b>底部导航</b>：LinearLayout + 3 个 TextView，指示条是一个 16×3 的 shape</li>
+        <li><b>弹层 / 对话框</b>：<code>Dialog</code> + 自定义布局，自绘 bottom sheet 与居中 Dialog</li>
+        <li><b>可滚动 Dialog</b>：外层固定高度 + 中间 <code>ScrollView</code> + 底部按钮同级固定
+            —— 原生就能做到，不需要任何库</li>
         <li><b>分组列表</b>：RecyclerView 的 <code>getItemViewType</code> 返回 header / row 两种类型</li>
+        <li><b>数字键盘</b>：GridLayout + 16 个 Button，纯布局</li>
       </ul>
     </div>
   </div>
 
   <!-- ============ 色板与字号 ============ -->
   <h2 class="sec">色板与字号阶梯 <small>沿用现有 colors.xml，仅新增分类色</small></h2>
-  <p class="sec-note">基础色全部来自 <code>res/values/colors.xml</code>，一处未改。新增的只有「分类识别色」——10 个分类 + 未分类共 11 色，用于列表左侧圆点和统计页条形图。</p>
+  <p class="sec-note">基础色全部来自 <code>res/values/colors.xml</code>，一处未改。新增的只有「分类识别色」——10 个分类 + 未分类共 11 色。</p>
   <div class="grid-2">
     <div class="card">
       <h4 style="margin:0 0 10px;font-size:14px">基础色（现有）</h4>
@@ -379,17 +508,18 @@
   <div class="card constraint" style="margin-top:16px">
     <h4>字号阶梯（沿用现有 sp 值，未新增档位）</h4>
     <ul>
-      <li><b>25sp</b> 本月支出大数　·　<b>16sp</b> 商户名/金额　·　<b>15sp</b> 标题　·　<b>13sp</b> 正文与按钮</li>
-      <li><b>12sp</b> 行内元信息　·　<b>11sp</b> 状态条与分组头（比现状更保守，不再用小字号堆信息）</li>
-      <li>金额统一 <code>-¥32.00 / +¥12,000.00</code>，与 <b>TransactionAdapter</b> 现有格式一致，不改成纯色分正负</li>
+      <li><b>33sp</b> 记一笔的金额输入（唯一的大号字，因为它是那一屏的主角）　·　<b>25sp</b> 本月支出大数</li>
+      <li><b>17sp</b> 数字键盘　·　<b>16sp</b> 商户名 / 金额　·　<b>15sp</b> 标题　·　<b>13sp</b> 正文与按钮</li>
+      <li><b>12sp</b> 行内元信息　·　<b>11sp</b> 状态条、分组头、底部导航标签</li>
+      <li>金额统一 <code>-¥32.00 / +¥12,000.00</code>，与 <b>TransactionAdapter</b> 现有格式一致</li>
     </ul>
   </div>
 
   <!-- ============ 屏幕 ============ -->
-  <h2 class="sec">屏幕设计 <small>7 屏，含 2 个异常态</small></h2>
+  <h2 class="sec">屏幕设计 <small>8 屏（v0.1 是 7 屏，新增「记一笔」）</small></h2>
   <p class="sec-note">
-    <b>屏 1、3</b> 可交互：点筛选 chip 会过滤列表，点「未识别商户」那一行会弹出修正弹层。
-    <b>屏 4</b> 的丢弃明细可展开。其余为静态展示。
+    <b>屏 1、4</b> 可交互：点筛选 chip 会过滤列表，点「未识别商户」那行会弹出修正弹层。
+    其余为静态展示。屏 5 的 Dialog 正文<b>真的可以滚动</b>，底部按钮固定不动。
   </p>
 
   <div class="screens">
@@ -397,11 +527,11 @@
     <!-- ================= 屏 1：流水首页 ================= -->
     <div class="phone-wrap">
       <div class="phone" id="phone1">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
 
         <div class="appbar">
           <div class="t">离线记账</div>
-          <div class="act"><span class="branddot"></span>采集<span style="color:#6B6B66">›</span></div>
+          <div class="act">导入</div>
         </div>
 
         <div class="monthnav">
@@ -419,10 +549,9 @@
           </div>
         </div>
 
-        <!-- 常驻状态条：一行放下两个通道，点开是采集设置 -->
         <div class="statusbar">
           <div class="l"><span class="branddot"></span><span class="tx">监听运行中 · 2 小时前有通知</span></div>
-          <div class="r">账单 12 天未导 <span class="go">›</span></div>
+          <div class="r calm">账单 12 天前导入 <span class="go">›</span></div>
         </div>
 
         <div class="chips" id="chips">
@@ -433,7 +562,7 @@
         </div>
 
         <div class="list" id="list1">
-          <div class="group-head"><span>9月20日 周日</span><span>支出 ¥86.50</span></div>
+          <div class="group-head"><span>9月21日 周一</span><span>支出 ¥86.50</span></div>
           <div class="row" data-k="expense">
             <span class="dot" style="background:#D9730D"></span>
             <div class="rmain">
@@ -451,7 +580,7 @@
             <div class="amt e">-¥54.50</div>
           </div>
 
-          <div class="group-head"><span>9月19日 周六</span><span>支出 ¥206.00</span></div>
+          <div class="group-head"><span>9月20日 周日</span><span>支出 ¥206.00</span></div>
           <div class="row" data-k="expense">
             <span class="dot" style="background:#185FA5"></span>
             <div class="rmain">
@@ -477,12 +606,12 @@
             <div class="amt e">-¥119.40</div>
           </div>
 
-          <div class="group-head"><span>9月18日 周五</span><span>支出 ¥45.80</span></div>
+          <div class="group-head"><span>9月19日 周六</span><span>支出 ¥45.80</span></div>
           <div class="row" data-k="expense">
             <span class="dot" style="background:#D9730D"></span>
             <div class="rmain">
               <div class="merchant">全家便利店</div>
-              <div class="meta">19:47 · 餐饮 · 微信</div>
+              <div class="meta">19:47 · 餐饮 · <span class="mnu">手动</span></div>
             </div>
             <div class="amt e">-¥12.80</div>
           </div>
@@ -494,7 +623,6 @@
             </div>
             <div class="amt e">-¥33.00</div>
           </div>
-          <!-- 被 chip 过滤时用的备选行 -->
           <div class="row" data-k="income" hidden>
             <span class="dot" style="background:#5B7C99"></span>
             <div class="rmain">
@@ -505,15 +633,14 @@
           </div>
         </div>
 
-        <!-- 修正弹层（点未识别商户弹出） -->
         <div class="dim" id="dim1"></div>
         <div class="sheet" id="sheet1">
           <div class="handle"></div>
           <h3>把这笔归到哪一类？</h3>
-          <div class="qs">支付宝 · 09-19 13:22 · -¥68.00</div>
+          <div class="qs">支付宝 · 09-20 13:22 · -¥68.00</div>
           <div class="normcard">
             将记为该商户：<b>未识别商户</b><br>
-            这笔账单里没有商户名（通知不带收款方）。建议先在下方导入一次账单，导入会把真实商户名自动回填过来；本次修正会按「该商户」永久记忆。
+            这笔账单里没有商户名（通知不带收款方）。建议先在设置里导入一次账单，导入会把真实商户名自动回填过来；本次修正会按「该商户」永久记忆。
           </div>
           <div class="catgrid">
             <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
@@ -533,29 +660,95 @@
           </div>
         </div>
 
-        <div class="bottombar">
-          <div class="btn primary">导入账单</div>
-          <div class="btn ghost">导出备份</div>
+        <div class="navbar">
+          <div class="nav-item on"><span class="ind"></span><span class="lb">流水</span></div>
+          <div class="nav-item add"><span class="pilladd">＋ 记一笔</span></div>
+          <div class="nav-item"><span class="ind"></span><span class="lb">统计</span></div>
         </div>
       </div>
       <div class="phone-cap">
         <b>屏 1 · 流水（首页）</b>
-        在现有布局上做了三处结构调整：① 汇总条下移合并「本月支出/收入/结余」三项财务数字，占比压缩；
-        ② 原有两行状态条<b>压成一行</b>，省下的垂直空间给列表；③ 新增筛选 chip 行。
-        列表改为<b>按日分组</b>（分组头显示当日支出小计）。<br>
-        <em>数据自检</em>：列表是可滚动区，图上呈现最近三天，三日小计 86.50 / 206.00 / 45.80 与组内各行金额<b>逐一核对一致</b>（合计 338.30）；
-        「本月支出 ¥3,281.40」是当月 42 笔全量，与屏 2 的分类合计一致——两屏数字互相咬合，不会出现「列表加起来不等于头部总数」的尴尬。
+        <b>底栏换成导航</b>后，原本躺在底栏的「导入 / 导出」必须搬家：<b>导入 → 顶栏右侧</b>（月度一次，但它是账目完整性的
+        唯一兜底，必须在首屏可见）；<b>导出备份 → 设置页</b>（低频）。<br>
+        底部导航只有文字没有图标，靠 3px 指示条 + 品牌色区分选中态——因为不能引图标库。
+        <br><em>数据自检</em>：三日小计 86.50 / 206.00 / 45.80 与组内各行金额逐一核对一致（合计 338.30）；
+        「本月支出 ¥3,281.40」是当月 42 笔全量，与屏 3 的分类合计一致。
+        另注意 9-19「全家便利店」的 meta 标着「<b>手动</b>」——演示新的手动录入来源如何与自动采集区分。
       </div>
     </div>
 
-    <!-- ================= 屏 2：统计 ================= -->
+    <!-- ================= 屏 2：记一笔（v0.2 新增） ================= -->
     <div class="phone-wrap">
       <div class="phone">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
+
+        <div class="appbar">
+          <div class="act dim">取消</div>
+          <div class="t">记一笔</div>
+          <div class="act" style="visibility:hidden">取消</div>
+        </div>
+
+        <div class="seg">
+          <div class="on exp">支出</div>
+          <div>收入</div>
+        </div>
+
+        <div class="catwrap">
+          <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
+          <div class="cat"><i style="background:#185FA5"></i>交通</div>
+          <div class="cat"><i style="background:#B4488A"></i>购物</div>
+          <div class="cat"><i style="background:#6B5B95"></i>居住</div>
+          <div class="cat"><i style="background:#C0392B"></i>医疗</div>
+          <div class="cat"><i style="background:#8E44AD"></i>娱乐</div>
+          <div class="cat"><i style="background:#5B7C99"></i>转账</div>
+          <div class="cat"><i style="background:#E0567A"></i>红包</div>
+          <div class="cat"><i style="background:#1E8449"></i>教育</div>
+          <div class="cat"><i style="background:#8A8A82"></i>其他</div>
+          <div class="cat"><i style="background:#8A8A82"></i>新增</div>
+        </div>
+
+        <div class="amountbox">
+          <div class="lb">金额</div>
+          <div class="num"><span class="cur">¥</span>128.50</div>
+        </div>
+
+        <div class="fieldrow">
+          <span class="ph">商户 / 备注</span>
+          <span class="rt">选填</span>
+        </div>
+        <div class="fieldrow">
+          <span class="val">今天 16:01</span>
+          <span class="rt">修改</span>
+        </div>
+
+        <div style="flex:1;background:var(--surface)"></div>
+
+        <div class="kpad">
+          <div class="k">1</div><div class="k">2</div><div class="k">3</div>
+          <div class="k save">保存</div>
+          <div class="k">4</div><div class="k">5</div><div class="k">6</div>
+          <div class="k">7</div><div class="k">8</div><div class="k">9</div>
+          <div class="k">.</div><div class="k">0</div><div class="k del">⌫</div>
+        </div>
+      </div>
+      <div class="phone-cap">
+        <b>屏 2 · 记一笔（v0.2 新增）</b>
+        自上而下就是录入顺序：<b>支出/收入 → 分类 → 金额 → 备注 → 保存</b>。三个刻意的决定：
+        ① <b>分类放在金额之上</b>：先选分类能让手指先离开键盘区，之后纯输数字不被打断；
+        ② <b>自建数字键盘</b>，右下角「保存」固定占一列，输入路径三次点击完成，系统键盘全程不弹出、不遮挡分类；
+        ③ 分类用 2 行横滑网格，10 个分类一屏放得下。
+        <em>支出/收入的分段按钮直接用 expense 红 / income 绿</em>，与列表金额配色同源，不用额外学习。
+      </div>
+    </div>
+
+    <!-- ================= 屏 3：统计 ================= -->
+    <div class="phone-wrap">
+      <div class="phone">
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
 
         <div class="appbar">
           <div class="t">统计</div>
-          <div class="act">导出<span style="color:#6B6B66">›</span></div>
+          <div class="act">导入</div>
         </div>
 
         <div class="monthnav">
@@ -605,7 +798,6 @@
           </div>
         </div>
 
-        <!-- 直接对应 §9 量化验收：未分类占比 < 15% -->
         <div class="checkcard">
           <div class="ct"><span><b>未分类占比</b> 3 笔</span><span class="ok">达标 ✓</span></div>
           <div class="line">
@@ -615,27 +807,33 @@
           <div class="foot">6.3% ／ 验收线 15%（红线在条的最右侧）　·　条形按「占验收线的比例」绘制，一眼看出还有多少余量</div>
         </div>
 
-        <!-- 直接对应 §9 量化验收：月度手动修正次数环比递减 -->
         <div class="trend">
           <div class="tv">↓43%</div>
           <div class="td"><b>本月手动修正 8 次</b>上月 14 次 · 修正记忆正在生效</div>
         </div>
+
+        <div class="navbar">
+          <div class="nav-item"><span class="ind"></span><span class="lb">流水</span></div>
+          <div class="nav-item add"><span class="pilladd">＋ 记一笔</span></div>
+          <div class="nav-item on"><span class="ind"></span><span class="lb">统计</span></div>
+        </div>
       </div>
       <div class="phone-cap">
-        <b>屏 2 · 统计</b>
-        <code>strings.xml</code> 里其实早就埋了 <code>tab_flow / tab_stats</code>，但布局里没有 tab、统计只有一个数字——这屏是把它补上。
-        下半部分两张卡是刻意的：<b>「未分类占比 vs 15% 验收线」</b>与<b>「修正次数环比」</b>直接搬自方案 §9 的量化验收条款，
-        让验收标准在界面上可见，而不是靠月底跑脚本。分类占比的 6 项金额合计 = ¥3,281.40，与顶部支出对得上。
+        <b>屏 3 · 统计</b>
+        <code>strings.xml</code> 里早就埋了 <code>tab_flow / tab_stats</code>，这屏把它补上，置于底部导航第三格。
+        下方两张卡是刻意的：<b>「未分类占比 vs 15% 验收线」</b>与<b>「修正次数环比」</b>搬自方案 §9 的量化验收条款，
+        让验收标准在界面上可见，而不是靠月底跑脚本。
+        <br><em>数据自检</em>：6 项分类金额合计 = ¥3,281.40，与顶部支出对得上；百分比合计 100.0%。
       </div>
     </div>
 
-    <!-- ================= 屏 3：分类修正弹层 ================= -->
+    <!-- ================= 屏 4：分类修正弹层 ================= -->
     <div class="phone-wrap">
       <div class="phone">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
         <div class="appbar">
           <div class="t">离线记账</div>
-          <div class="act"><span class="branddot"></span>采集<span style="color:#6B6B66">›</span></div>
+          <div class="act">导入</div>
         </div>
         <div class="monthnav"><span class="arrow">‹</span><span class="cur">2026年9月</span><span class="arrow">›</span></div>
 
@@ -649,11 +847,11 @@
         </div>
         <div class="statusbar">
           <div class="l"><span class="branddot"></span><span class="tx">监听运行中 · 2 小时前有通知</span></div>
-          <div class="r">账单 12 天未导 <span class="go">›</span></div>
+          <div class="r calm">账单 12 天前导入 <span class="go">›</span></div>
         </div>
 
         <div class="list" style="flex:1">
-          <div class="group-head"><span>9月20日 周日</span><span>支出 ¥86.50</span></div>
+          <div class="group-head"><span>9月21日 周一</span><span>支出 ¥86.50</span></div>
           <div class="row">
             <span class="dot" style="background:#D9730D"></span>
             <div class="rmain">
@@ -663,7 +861,7 @@
             <div class="amt e">-¥32.00</div>
           </div>
           <div class="row" style="background:#F2F7FC">
-            <span class="dot" style="background:#D9730D"></span>
+            <span class="dot" style="background:#8E44AD"></span>
             <div class="rmain">
               <div class="merchant">星巴克(XX广场店)</div>
               <div class="meta">09:12 · 餐饮 · 微信</div>
@@ -686,7 +884,6 @@
           <h3>把「星巴克(XX广场店)」归到哪一类？</h3>
           <div class="qs">当前：餐饮（关键词规则命中）</div>
 
-          <!-- 记忆闭环的唯一反馈面：必须是「归一到什么」而不是「选了哪个分类」 -->
           <div class="normcard">
             归一后记为该商户：<b>星巴克</b><br>
             分店后缀已自动去掉。此后<b>所有「星巴克」消费自动归到「咖啡简餐」</b>，不用再手动改。
@@ -713,96 +910,146 @@
           </div>
         </div>
 
-        <div class="bottombar">
-          <div class="btn primary">导入账单</div>
-          <div class="btn ghost">导出备份</div>
+        <div class="navbar">
+          <div class="nav-item on"><span class="ind"></span><span class="lb">流水</span></div>
+          <div class="nav-item add"><span class="pilladd">＋ 记一笔</span></div>
+          <div class="nav-item"><span class="ind"></span><span class="lb">统计</span></div>
         </div>
       </div>
       <div class="phone-cap">
-        <b>屏 3 · 分类修正弹层</b>
-        三处关键设计：① 标题里带上<b>完整商户名</b>（含分店），用户才知道自己改的是哪一笔；
+        <b>屏 4 · 分类修正弹层</b>
+        三处关键设计：① 标题带<b>完整商户名</b>（含分店），用户才知道自己改的是哪一笔；
         ② 蓝色卡回报「<b>归一后记为该商户：星巴克</b>，分店后缀已自动去掉」——这是 <b>MerchantNormalizer</b> 的行为第一次被用户看见，
         否则用户会疑惑「我明明改的是这一家，为什么别的店也变了」；
-        ③ 两个动作按钮明确区分「<b>仅改这一笔</b>」与「<b>记住并应用</b>」，避免用户以为改了分类就被永久记住（实际会，但要说清楚）。
+        ③ 两个动作按钮明确区分「<b>仅改这一笔</b>」与「<b>记住并应用</b>」。
         弹层用 Dialog + 底部 gravity 自绘，不引 Material BottomSheet。
       </div>
     </div>
 
-    <!-- ================= 屏 4：导入结果 ================= -->
+    <!-- ================= 屏 5：导入结果（可滚动 Dialog） ================= -->
     <div class="phone-wrap">
       <div class="phone">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
         <div class="appbar">
-          <div class="t">导入完成</div>
-          <div class="act" style="color:#6B6B66">关闭</div>
+          <div class="t">离线记账</div>
+          <div class="act">导入</div>
+        </div>
+        <div class="monthnav"><span class="arrow">‹</span><span class="cur">2026年9月</span><span class="arrow">›</span></div>
+
+        <div class="summary">
+          <div class="lb">本月支出</div>
+          <div class="big">¥3,281.40</div>
+          <div class="two">
+            <div><span class="lb">本月收入</span><span class="v">¥12,000.00</span></div>
+            <div class="r"><span class="lb">结余</span><span class="v" style="color:#8FD5A6">+¥8,718.60</span></div>
+          </div>
+        </div>
+        <div class="statusbar">
+          <div class="l"><span class="branddot"></span><span class="tx">监听运行中 · 2 小时前有通知</span></div>
+          <div class="r calm">账单 12 天前导入 <span class="go">›</span></div>
         </div>
 
-        <div class="srcline" style="margin-top:0">
-          <div class="st">微信账单 · 已识别</div>
-          <div class="sd">
-            来源：<code>.xlsx</code>，按表头 <code>交易对方 / 收&#47;支 / 交易单号</code> 匹配到微信 profile<br>
-            覆盖时段：2026-06-01 ~ 2026-08-31　·　交易成功 130 行
-          </div>
-        </div>
-
-        <!-- §9：静默错误 = 0，所有丢弃必须计数且用户可见 -->
-        <div class="kpis">
-          <div class="kpi hl">
-            <div class="k">合并回填</div>
-            <div class="v">24</div>
-            <div class="d">通知记录补齐了商户名与交易单号</div>
-          </div>
-          <div class="kpi">
-            <div class="k">新增</div>
-            <div class="v">96</div>
-            <div class="d">此前从未记录过的交易</div>
-          </div>
-          <div class="kpi">
-            <div class="k">跳过重复</div>
-            <div class="v">8</div>
-            <div class="d">单号或指纹命中既有记录</div>
-          </div>
-          <div class="kpi" style="border-color:#B45309">
-            <div class="k">丢弃</div>
-            <div class="v" style="color:#B45309">2</div>
-            <div class="d">宁缺毋滥，未猜默认值</div>
+        <div class="list" style="flex:1">
+          <div class="group-head"><span>9月21日 周一</span><span>支出 ¥86.50</span></div>
+          <div class="row">
+            <span class="dot" style="background:#D9730D"></span>
+            <div class="rmain">
+              <div class="merchant">星巴克(XX广场店)</div>
+              <div class="meta">09:12 · 餐饮 · 微信</div>
+            </div>
+            <div class="amt e">-¥32.00</div>
           </div>
         </div>
 
-        <div class="srcline">
-          <div class="sd" style="color:#1A1A18"><b>核对：</b>96 + 24 + 8 + 2 = 130 行，与文件行数一致 ✓</div>
-          <div class="reason">
-            <div class="rh">丢弃 2 笔 · 原因明细（可点开）</div>
-            <div class="ri"><span>金额无法解析（列为空）</span><b>1</b></div>
-            <div class="ri"><span>状态为「已全额退款」</span><b>1</b></div>
-            <div class="ri" style="color:#6B6B66"><span>另：不计收支 / 中性交易</span><b>0</b></div>
+        <div class="dim show" style="background:rgba(26,26,24,.46)"></div>
+
+        <!-- 居中 Dialog：头部固定 + 正文滚动 + 底部按钮固定 -->
+        <div class="dialog">
+          <div class="dlg-head">
+            <span class="dt">导入完成</span>
+            <span class="dx">关闭</span>
           </div>
-        </div>
 
-        <div style="flex:1"></div>
+          <div class="dlg-body">
+            <div class="srcline">
+              <div class="st">微信账单 · 已识别</div>
+              <div class="sd">
+                按表头 <code>交易对方 / 收&#47;支 / 交易单号</code> 匹配到微信 profile<br>
+                覆盖时段：2026-06-01 ~ 2026-08-31
+              </div>
+            </div>
 
-        <div class="bottombar" style="flex-direction:column">
-          <div class="btn primary" style="width:100%">查看未分类的 3 笔</div>
-          <div class="btn ghost" style="width:100%">完成</div>
+            <div class="kpis">
+              <div class="kpi hl">
+                <div class="k">合并回填</div>
+                <div class="v">24</div>
+                <div class="d">补齐商户名与单号</div>
+              </div>
+              <div class="kpi">
+                <div class="k">新增</div>
+                <div class="v">96</div>
+                <div class="d">此前未记录过</div>
+              </div>
+              <div class="kpi">
+                <div class="k">跳过重复</div>
+                <div class="v">8</div>
+                <div class="d">单号或指纹命中</div>
+              </div>
+              <div class="kpi" style="border-color:#B45309">
+                <div class="k">丢弃</div>
+                <div class="v" style="color:#B45309">2</div>
+                <div class="d">宁缺毋滥，未猜默认值</div>
+              </div>
+            </div>
+
+            <div class="srcline">
+              <div class="sd" style="color:#1A1A18"><b>核对：</b>96 + 24 + 8 + 2 = 130 行，与文件行数一致 ✓</div>
+              <div class="reason">
+                <div class="rh">丢弃 2 笔 · 原因明细</div>
+                <div class="ri"><span>金额无法解析（列为空）</span><b>1</b></div>
+                <div class="ri"><span>状态为「已全额退款」</span><b>1</b></div>
+                <div class="ri" style="color:#6B6B66"><span>另：不计收支 / 中性交易</span><b>0</b></div>
+              </div>
+            </div>
+
+            <div class="tipcard">
+              <b>同期还有支付宝账单未导入。</b>
+              检测到你近三个月有支付宝交易通知，但账单没导过。微信与支付宝的导出是两条独立通道，
+              建议一并导入，否则这部分的收付款方式与官方分类仍是缺的。
+            </div>
+
+            <div class="tipcard" style="border-left-color:#B45309">
+              <b>本次新增的 96 笔里有 3 笔未分类。</b>
+              已按「修正记忆 → 关键词规则 → 官方分类种子 → 兜底」处理过，剩下的需要你指认一次。
+              改过一次之后，同类商户以后都会自动归类。
+            </div>
+          </div>
+
+          <div class="dlg-foot">
+            <div class="btn ghost">查看未分类 3 笔</div>
+            <div class="btn primary">完成</div>
+          </div>
         </div>
       </div>
       <div class="phone-cap">
-        <b>屏 4 · 导入结果</b>
-        这是对现状改动最大的一屏：<b>Toast 一闪而过 → 结果页常驻</b>。
-        方案 §9 明确「静默错误 = 0（所有丢弃必须计数且用户可见）」，而 Toast 在物理上做不到「可见」。
-        四个数字里把「<b>合并回填 24</b>」放在首位并高亮，因为它才是 §4.3 的核心价值——
-        用户能直接看到「24 笔原本缺商户名的通知记录，现在有名字了，可以归类了」。
-        底部那行 <b>96+24+8+2 = 130</b> 是刻意的对账自检，防止解析侧少读行却报「成功」。
+        <b>屏 5 · 导入结果（可滚动 Dialog，v0.2 改造）</b>
+        按你的决定，从整页改成<b>居中 Dialog</b>：宽 312、最高占屏 76%。三个结构要点：
+        ① <b>头部固定</b>（标题 + 关闭），② <b>只有正文滚动</b>，③ <b>底部两个按钮固定</b>，不随内容滚走。
+        原生就是一个 <code>ScrollView</code> 夹在两层固定视图中间，不需要任何库。<br>
+        正文故意放得比可视区高（来源卡 + 2×2 KPI + 核对行 + 丢弃明细 + 两张提示卡）——
+        <b>把正文滚到底试试，底部按钮不会动</b>。这也解释了为什么 KPI 从 v0.1 的横排 4 个改成 2×2：Dialog 窄。
+        <br>底部那行 <b>96+24+8+2 = 130</b> 是刻意的对账自检，防止解析侧少读行却报「成功」。
+        「同期支付宝未导入」那张提示卡是新增的——微信/支付宝是两条独立导出通道，只导一边会让账目长期半残。
       </div>
     </div>
 
-    <!-- ================= 屏 5：采集设置 ================= -->
+    <!-- ================= 屏 6：设置 ================= -->
     <div class="phone-wrap">
       <div class="phone">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
         <div class="appbar">
-          <div class="t">采集设置</div>
-          <div class="act" style="color:#6B6B66">关闭</div>
+          <div class="t">设置</div>
+          <div class="act dim">关闭</div>
         </div>
 
         <div class="setblk" style="margin-top:6px">
@@ -839,9 +1086,9 @@
           <div class="setrow">
             <div class="sl">
               <div class="s1">最近导入</div>
-              <div class="s2">2026-09-08 · 12 天前 · 建议每月一次</div>
+              <div class="s2">2026-09-09 · 12 天前 · 超 35 天会转红告警</div>
             </div>
-            <div class="sv"><span class="pill mid">该导了</span></div>
+            <div class="sv"><span class="pill ok">正常</span></div>
           </div>
           <div class="setrow tap">
             <div class="sl">
@@ -849,6 +1096,13 @@
               <div class="s2">支持 .xlsx 与 .csv，在手机文件里选</div>
             </div>
             <div class="sv">选择文件 ›</div>
+          </div>
+          <div class="setrow tap">
+            <div class="sl">
+              <div class="s1">导出备份</div>
+              <div class="s2">导出全部记录与修正记忆</div>
+            </div>
+            <div class="sv">导出 ›</div>
           </div>
         </div>
 
@@ -887,17 +1141,19 @@
         <div style="flex:1"></div>
       </div>
       <div class="phone-cap">
-        <b>屏 5 · 采集设置</b>
-        把现有那个「一个 AlertDialog 塞满文字」的采集设置改成结构化列表。
+        <b>屏 6 · 设置</b>
+        原「采集设置」改名「设置」，因为它现在还要收留<b>被底部导航挤出来的「导出备份」</b>。
+        分区从三块变四块：采集通道 / 账单导入 / 解析规则 / 数据与隐私。
+        <br>「最近导入」那行把新阈值直接写出来（<b>超 35 天会转红告警</b>），用户能自己判断离告警还有多久。
         <b>规则版本号</b>与<b>构建版本号</b>上界面是刻意的：侧载没有商店帮忙标版本，出问题时「装的是哪一版」是唯一判据。
-        「检查规则更新」以 45% 透明度灰显而非隐藏——<b>让用户知道这个能力存在、只是当前构建没有</b>，比凭空消失更好解释。
+        「检查规则更新」以 45% 透明度灰显而非隐藏——让用户知道这个能力存在、只是当前构建没有。
       </div>
     </div>
 
-    <!-- ================= 屏 6：服务未运行告警 ================= -->
+    <!-- ================= 屏 7：服务未运行告警 ================= -->
     <div class="phone-wrap">
       <div class="phone">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
 
         <div class="banner alert">
           <div class="bt">通知监听没有真正生效</div>
@@ -913,7 +1169,7 @@
 
         <div class="appbar">
           <div class="t">离线记账</div>
-          <div class="act"><span class="branddot stall"></span>采集<span style="color:#6B6B66">›</span></div>
+          <div class="act">导入</div>
         </div>
         <div class="monthnav"><span class="arrow">‹</span><span class="cur">2026年9月</span><span class="arrow">›</span></div>
 
@@ -926,13 +1182,14 @@
           </div>
         </div>
 
+        <!-- 两个通道同时出问题：监听停了，账单也已超过 35 天没导 -->
         <div class="statusbar" style="background:#FDF2F0;border-color:#F0D9D3">
-          <div class="l"><span class="branddot stall"></span><span class="tx" style="color:#C0392B;font-weight:600">监听：已授权，但服务未运行 · 6 天无通知</span></div>
-          <div class="r">账单 12 天未导 <span class="go">›</span></div>
+          <div class="l"><span class="branddot stall"></span><span class="tx" style="color:#C0392B;font-weight:600">监听已停 · 6 天无通知</span></div>
+          <div class="r">账单 38 天未导 <span class="go">›</span></div>
         </div>
 
         <div class="list">
-          <div class="group-head"><span>9月14日 周一</span><span>支出 ¥96.00</span></div>
+          <div class="group-head"><span>9月15日 周二</span><span>支出 ¥96.00</span></div>
           <div class="row">
             <span class="dot" style="background:#D9730D"></span>
             <div class="rmain">
@@ -949,7 +1206,7 @@
             </div>
             <div class="amt e">-¥55.00</div>
           </div>
-          <div class="group-head"><span>9月13日 周日</span><span>支出 ¥152.00</span></div>
+          <div class="group-head"><span>9月14日 周一</span><span>支出 ¥152.00</span></div>
           <div class="row">
             <span class="dot" style="background:#B4488A"></span>
             <div class="rmain">
@@ -960,24 +1217,26 @@
           </div>
         </div>
 
-        <div class="bottombar">
-          <div class="btn primary">导入账单</div>
-          <div class="btn ghost">导出备份</div>
+        <div class="navbar">
+          <div class="nav-item on"><span class="ind"></span><span class="lb">流水</span></div>
+          <div class="nav-item add"><span class="pilladd">＋ 记一笔</span></div>
+          <div class="nav-item"><span class="ind"></span><span class="lb">统计</span></div>
         </div>
       </div>
       <div class="phone-cap">
-        <b>屏 6 · 异常态：已授权但服务未运行</b>
+        <b>屏 7 · 异常态：两个通道同时失效</b>
         这是整条链路里<b>最隐蔽</b>的失效方式（§4.2 P1 修订）：系统不提供「服务此刻是否活着」的查询，
         <code>getEnabledListenerPackages()</code> 只回答「授权过没有」，而授权是持久的——服务被 ROM 清掉后它照样返回 true。
-        所以设计上做了三层冗余提醒：① 顶部红色告警条；② 标题栏圆点<b>变红</b>；③ 状态条底色变红并写明「6 天无通知」。
-        同时下方列表<b>照常展示旧数据</b>——不能把列表清空，那会让用户以为数据丢了。
+        所以做了三层冗余提醒：① 顶部红色告警条；② 状态条底色变红并写明「6 天无通知」；
+        ③ 右侧<b>「账单 38 天未导」</b>——这里正好演示了 v0.2 改过的阈值：<em>38 &gt; 35，所以转红</em>（旧阈值 40 天时它不会是红的）。
+        同时下方列表<b>照常展示旧数据</b>——不能清空，那会让用户以为数据丢了。
       </div>
     </div>
 
-    <!-- ================= 屏 7：空态 ================= -->
+    <!-- ================= 屏 8：首次安装空态 ================= -->
     <div class="phone-wrap">
       <div class="phone">
-        <div class="sysbar"><span>17:07</span><span>5G&nbsp;&nbsp;88%</span></div>
+        <div class="sysbar"><span>16:01</span><span>5G&nbsp;&nbsp;88%</span></div>
 
         <div class="banner info">
           <div class="bt">三步开始：授权 → 导入历史 → 日常自动</div>
@@ -994,7 +1253,7 @@
 
         <div class="appbar">
           <div class="t">离线记账</div>
-          <div class="act" style="color:#6B6B66">采集 ›</div>
+          <div class="act">导入</div>
         </div>
         <div class="monthnav"><span class="arrow">‹</span><span class="cur">2026年9月</span><span class="arrow">›</span></div>
 
@@ -1008,7 +1267,7 @@
         </div>
 
         <div class="statusbar">
-          <div class="l"><span class="branddot" style="background:#D0CDC5"></span><span class="tx">监听：未开启</span></div>
+          <div class="l"><span class="branddot off"></span><span class="tx">监听：未开启</span></div>
           <div class="r">尚未导入账单 <span class="go">›</span></div>
         </div>
 
@@ -1017,162 +1276,174 @@
           <div class="et">还没有任何记录</div>
           <div class="ed">
             开启通知监听后，收到微信 / 支付宝的付款通知会自动记下来。<br>
-            历史账目请点下方「导入账单」，选择导出的 <b>.xlsx</b> 文件。
+            历史账目请点下方按钮，选择导出的 <b>.xlsx</b> 文件。
           </div>
+          <div class="go">导入账单</div>
         </div>
 
-        <div class="bottombar">
-          <div class="btn primary">导入账单</div>
-          <div class="btn ghost" style="opacity:.45">导出备份</div>
+        <div class="navbar">
+          <div class="nav-item on"><span class="ind"></span><span class="lb">流水</span></div>
+          <div class="nav-item add"><span class="pilladd">＋ 记一笔</span></div>
+          <div class="nav-item"><span class="ind"></span><span class="lb">统计</span></div>
         </div>
       </div>
       <div class="phone-cap">
-        <b>屏 7 · 首次安装空态</b>
-        现状空态只有一句「暂无记录」，且授权提示条在<b>页面最顶部、内容为空时反而最容易被划走</b>。
-        这里把首次安装的<b>操作顺序</b>直接写进提示里：授权 → 导入历史 → 日常自动。
+        <b>屏 8 · 首次安装空态</b>
+        把首次安装的<b>操作顺序</b>直接写进提示：授权 → 导入历史 → 日常自动。
         强调「先导入账单」是有依据的——账单是唯一 100% 完整且自带商户名的来源（方案 §0），
         先导入能让第一屏就是「已归类、可看」的状态，而不是一堆「未识别商户」。
+        <br>空态里的「导入账单」是内容区的主动作（不是底栏按钮）——底栏现在归导航，
+        且空态下用户唯一该做的事就是导入，把它放在视线中心比放在栏里更对。
       </div>
     </div>
 
   </div><!-- /screens -->
 
   <!-- ============ 评审清单 ============ -->
-  <h2 class="sec">逐条评审清单 <small>13 项，请逐条给「同意 / 改」</small></h2>
-  <p class="sec-note">
-    「依据」一列如果不是硬约束，就是可以商量的偏好项。<b>判定为「需拍板」的 4 项建议优先答复</b>，其余可以直接说「都同意」。
-  </p>
+  <h2 class="sec">完整评审清单 <small>已拍板的划掉，剩下的逐条给结论</small></h2>
+  <p class="sec-note">前 4 条是你已拍板的；接着 3 条是这次改动新产生的；最后 9 条是 v0.1 里未被单独否决、按原样保留的。</p>
   <table class="review">
     <thead>
-      <tr><th>#</th><th>设计点</th><th>现状</th><th>本稿建议</th><th>依据 / 代价</th><th>判定</th></tr>
+      <tr><th>#</th><th>设计点</th><th>落地方式</th><th>依据 / 代价</th><th>状态</th></tr>
     </thead>
     <tbody>
-      <tr>
+      <tr class="done">
         <td>1</td>
-        <td><b>导航结构</b></td>
-        <td>无导航，单页堆叠</td>
-        <td>自绘 2 tab：流水 / 统计（顶部或底部）</td>
-        <td class="mono">strings.xml 已有 tab_flow/tab_stats；自绘省掉 TabLayout 依赖</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>手动记账</b></td>
+        <td>底部中间位 + 独立一屏（屏 2）</td>
+        <td class="mono">范围变更，连带影响见「新产生的问题」①</td>
+        <td><span class="verdict v-done">已拍板</span></td>
       </tr>
-      <tr>
+      <tr class="done">
         <td>2</td>
-        <td><b>列表按日分组</b></td>
-        <td>平铺，无日期分隔</td>
-        <td>日期分组头 + 当日支出小计</td>
-        <td class="mono">需 RecyclerView 两种 viewType，成本小；分组后行内只留 HH:mm</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>导入阈值</b></td>
+        <td>40 → 35 天，代码 + 单测 + 方案文档 5 处同步</td>
+        <td class="mono">35 = 30 天月度周期 + 5 天宽限</td>
+        <td><span class="verdict v-done">已落地</span></td>
       </tr>
-      <tr>
+      <tr class="done">
         <td>3</td>
-        <td><b>修正入口</b></td>
-        <td>仅长按，零提示</td>
-        <td>点击记录 = 打开修正弹层，长按保留</td>
-        <td class="mono">§4.4 修正记忆是准确率核心；隐藏功能等于没做</td>
-        <td><span class="verdict v-chg">改</span></td>
+        <td><b>tab 位置</b></td>
+        <td>底部导航 3 格（流水 / ＋记一笔 / 统计），自绘</td>
+        <td class="mono">底栏被占用 → 导入上顶栏、导出进设置</td>
+        <td><span class="verdict v-done">已拍板</span></td>
       </tr>
-      <tr>
+      <tr class="done">
         <td>4</td>
-        <td><b>归一化反馈</b></td>
-        <td>无（用户看不到归一结果）</td>
-        <td>弹层回报「归一后记为该商户：星巴克」</td>
-        <td class="mono">MerchantNormalizer 的副作用首次可见，避免「改一家店影响其他店」的困惑</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>导入结果形态</b></td>
+        <td>可滚动 Dialog：头固定 / 正文滚动 / 底部按钮固定</td>
+        <td class="mono">不新增 Activity，成本低于整页</td>
+        <td><span class="verdict v-done">已拍板</span></td>
       </tr>
       <tr>
         <td>5</td>
-        <td><b>导入结果呈现</b></td>
-        <td>Toast，一闪而过</td>
-        <td>独立结果页：新增/回填/重复/丢弃 四数常驻，丢弃可展开</td>
-        <td class="mono">§9「静默错误 = 0」；需要新增一个界面</td>
-        <td><span class="verdict v-chg">改</span></td>
+        <td><b>手动记录是否参与融合判重</b></td>
+        <td>建议：参与（走 mergeRecord），独立前缀 <code>manual_</code></td>
+        <td class="mono">不参与则必然出现「手动 + 通知」双记账</td>
+        <td><span class="verdict v-ask">需拍板</span></td>
       </tr>
       <tr>
         <td>6</td>
-        <td><b>验收指标上界面</b></td>
-        <td>无</td>
-        <td>统计页显示未分类占比 vs 15% 验收线、月度修正次数环比</td>
-        <td class="mono">§9 量化验收第 1、4 条；零后端成本，纯本地统计</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>记一笔的键盘形态</b></td>
+        <td>建议：自建数字键盘（右下角固定「保存」）</td>
+        <td class="mono">约 100 行 Kotlin；降级为系统键盘可省掉它</td>
+        <td><span class="verdict v-ask">需拍板</span></td>
       </tr>
       <tr>
         <td>7</td>
-        <td><b>状态条形态</b></td>
-        <td>两行 11sp 小字，超 40 天才标红</td>
-        <td>压成一行（左监听/右导入），点在右侧箭头进设置</td>
-        <td class="mono">省垂直空间给列表；40 天阈值建议下调</td>
-        <td><span class="verdict v-chg">改</span></td>
+        <td><b>手动记录的分类与标记</b></td>
+        <td>建议：分类必选 + 列表 meta 显示「手动」</td>
+        <td class="mono">需在 <code>autoClassified</code> 之外再区分一个维度</td>
+        <td><span class="verdict v-ask">需拍板</span></td>
       </tr>
       <tr>
         <td>8</td>
-        <td><b>未分类的可见性</b></td>
-        <td>只有行内「未分类」三字</td>
-        <td>虚线圆点 + 浅底行 + chip 角标计数 + 蓝色「点此修正」</td>
-        <td class="mono">四处弱提示叠加，不刺眼但扫得到</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>列表按日分组</b></td>
+        <td>日期分组头 + 当日支出小计</td>
+        <td class="mono">RecyclerView 两种 viewType；分组后行内只留 HH:mm</td>
+        <td><span class="verdict v-add">保留</span></td>
       </tr>
       <tr>
         <td>9</td>
-        <td><b>分类视觉语言</b></td>
-        <td>纯文字</td>
-        <td>纯色圆点 9px，不引入图标</td>
-        <td class="mono">任何图标库都会破坏体积红线；圆点零成本</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>修正入口</b></td>
+        <td>点击记录 = 打开修正弹层，长按保留为快捷方式</td>
+        <td class="mono">§4.4 修正记忆是准确率核心；隐藏功能等于没做</td>
+        <td><span class="verdict v-chg">保留</span></td>
       </tr>
       <tr>
         <td>10</td>
-        <td><b>采集设置的形态</b></td>
-        <td>一个 AlertDialog 塞满纯文本</td>
-        <td>结构化列表：通道状态 / 导入 / 规则 / 数据与隐私</td>
-        <td class="mono">纯文本弹窗读起来累，且无处放版本号</td>
-        <td><span class="verdict v-chg">改</span></td>
+        <td><b>归一化反馈</b></td>
+        <td>弹层回报「归一后记为该商户：星巴克」</td>
+        <td class="mono">MerchantNormalizer 的副作用首次可见</td>
+        <td><span class="verdict v-add">保留</span></td>
       </tr>
       <tr>
         <td>11</td>
-        <td><b>服务停摆的三层提醒</b></td>
-        <td>仅顶部一条 banner</td>
-        <td>banner + 标题栏圆点变红 + 状态条变红，列表保留旧数据</td>
-        <td class="mono">§4.2；最隐蔽失效方式，提示不足等于没有</td>
-        <td><span class="verdict v-chg">改</span></td>
+        <td><b>验收指标上界面</b></td>
+        <td>统计页显示未分类占比 vs 15%、月度修正次数环比</td>
+        <td class="mono">§9 量化验收第 1、4 条</td>
+        <td><span class="verdict v-add">保留</span></td>
       </tr>
       <tr>
         <td>12</td>
-        <td><b>筛选功能范围</b></td>
-        <td>无</td>
-        <td>只做 4 个 chip：全部 / 支出 / 收入 / 未分类</td>
-        <td class="mono">不做搜索、不做日期范围选择器（P2 不需要，且要额外控件）</td>
-        <td><span class="verdict v-add">新增</span></td>
+        <td><b>未分类的可见性</b></td>
+        <td>虚线圆点 + 浅底行 + chip 角标计数 + 蓝色「点此修正」</td>
+        <td class="mono">四处弱提示叠加，不刺眼但扫得到</td>
+        <td><span class="verdict v-add">保留</span></td>
       </tr>
       <tr>
         <td>13</td>
-        <td><b>要不要「手动记一笔」</b></td>
-        <td>无此功能</td>
-        <td>本稿<b>未加</b>，等你拍板</td>
-        <td class="mono">方案 §1.1 的「做什么」里没有手记；但现金支出会漏。加了要新增输入页 + 键盘处理</td>
-        <td><span class="verdict v-ask">需拍板</span></td>
+        <td><b>分类视觉语言</b></td>
+        <td>纯色圆点 9px，不引入图标</td>
+        <td class="mono">任何图标库都会破坏体积红线</td>
+        <td><span class="verdict v-add">保留</span></td>
+      </tr>
+      <tr>
+        <td>14</td>
+        <td><b>状态条形态</b></td>
+        <td>压成一行（左监听 / 右导入），点进设置</td>
+        <td class="mono">省垂直空间给列表</td>
+        <td><span class="verdict v-chg">保留</span></td>
+      </tr>
+      <tr>
+        <td>15</td>
+        <td><b>服务停摆多层提醒</b></td>
+        <td>banner + 状态条变红，列表保留旧数据</td>
+        <td class="mono">§4.2；最隐蔽失效方式，提示不足等于没有</td>
+        <td><span class="verdict v-chg">保留</span></td>
+      </tr>
+      <tr>
+        <td>16</td>
+        <td><b>筛选范围</b></td>
+        <td>只做 4 个 chip，不做搜索与日期选择器</td>
+        <td class="mono">P2 不需要；搜索要额外控件与索引</td>
+        <td><span class="verdict v-add">保留</span></td>
       </tr>
     </tbody>
   </table>
 
-  <h2 class="sec">其他需要你拍板的点</h2>
+  <h2 class="sec">刻意没做的事</h2>
   <div class="grid-2">
     <div class="card constraint">
-      <h4>以「需拍板」标注的 4 项</h4>
+      <h4>不在本稿范围内</h4>
       <ul>
-        <li><b>#13 手动记一笔</b>：现金 / 线下支付会完全缺失，目前无补救手段。加还是不加？</li>
-        <li><b>#7 导入提醒阈值</b>：现为 40 天。按「每月导入」建议下调到 <b>35 天</b>（留 5 天缓冲）。同意否？</li>
-        <li><b>#1 tab 位置</b>：顶部（省空间、与现状接近）还是底部（更符合安卓单手操作习惯）？</li>
-        <li><b>#5 导入结果页形态</b>：独立整页，还是可滚动的长 Dialog？（整页更好读，Dialog 改动更小）</li>
+        <li><b>深色模式</b>：主题是 <code>DayNight</code>，但目前只有一套浅色值。补 <code>values-night</code> 是一块独立工作量，属新增决定</li>
+        <li><b>详情页</b>：点击记录直接进修正弹层，暂不做二级页</li>
+        <li><b>图表库</b>：统计页只有条形与进度条，不引任何图表库</li>
+        <li><b>年度统计</b>：属 P4，现在设计它等于提前解冻冻结项</li>
+        <li><b>改动金额格式</b>：<code>-¥32.00</code> 与适配器现状一致，不改成「红色数字不带负号」</li>
       </ul>
     </div>
     <div class="card constraint">
-      <h4>本稿刻意没做的事（避免范围膨胀）</h4>
+      <h4>落地顺序建议</h4>
       <ul>
-        <li><b>不做深色模式设计</b>：主题是 <code>DayNight</code>，但目前只有一套浅色值。要么补 <code>values-night</code>，要么改成固定浅色，属于新增决定</li>
-        <li><b>不做详情页</b>：点击记录直接进修正弹层，暂不做「点开看完整信息」的二级页</li>
-        <li><b>不做图表</b>：统计页只有条形与进度条，不引任何图表库（一个环形图就要几万行 JS 或一个依赖）</li>
-        <li><b>不做年度统计</b>：那属于 P4，现在设计它等于提前解冻冻结项</li>
-        <li><b>不动金额格式</b>：<code>-¥32.00</code> 与适配器现状一致，不改成「红色数字不带负号」</li>
+        <li><b>第一步只做不加功能的改造</b>：底部导航 + 按日分组 + 点击修正 + 状态条压行。
+            这几项不碰数据层，风险最低，改完就能看</li>
+        <li><b>第二步做导入结果 Dialog</b>：纯 UI，也不碰数据层</li>
+        <li><b>第三步才做记一笔</b>：它要动 <code>sourceId</code> 前缀与判重语义，
+            必须先定「新产生的问题①」，并配套单测（构造「手动 + 通知同金额同商户」的重复场景）</li>
+        <li>理由：AGENTS.md 要求每次改动配套测试且全绿；把不碰数据层的 UI 改动先落地，
+            能避免「UI 和数据层同时改、测试红了分不清是谁的锅」</li>
       </ul>
     </div>
   </div>
@@ -1180,7 +1451,8 @@
   <footer>
     本文件是<b>设计稿</b>，不是实现。所有金额、商户名与门店均为虚构占位（门店一律写作 <code>XX广场店</code>），不含任何真实账单数据；
     文件完全自包含、零外部依赖，可直接离线打开（与 App 本身的离线约束一致）。
-    <br>下一步（待你确认本稿后）：按屏拆成 <code>res/layout/*.xml</code> + <code>colors.xml</code> 新增色值 + <code>strings.xml</code> 文案，先出<b>屏 1 + 屏 4</b>两屏的可用版本，跑通后再铺其余屏。
+    <br>v0.2 相对 v0.1：新增屏 2（记一笔）、屏 5 改为可滚动 Dialog、各屏加底部导航、导入/导出入口迁移、阈值文案 35 天、
+    新增「这次拍板新产生的问题」一节。
   </footer>
 
 </div>
@@ -1236,11 +1508,24 @@
   var dim1 = document.getElementById('dim1');
   if (dim1) dim1.addEventListener('click', function(){ close('sheet1'); });
 
-  // ---- 弹层里的分类选择 ----
-  document.querySelectorAll('.catgrid .cat').forEach(function(c){
-    c.addEventListener('click', function(){
-      c.parentNode.querySelectorAll('.cat').forEach(function(x){ x.classList.remove('on'); });
-      c.classList.add('on');
+  // ---- 弹层与记一笔里的分类选择 ----
+  document.querySelectorAll('.catgrid, .catwrap').forEach(function(g){
+    g.querySelectorAll('.cat').forEach(function(c){
+      c.addEventListener('click', function(){
+        g.querySelectorAll('.cat').forEach(function(x){ x.classList.remove('on'); });
+        c.classList.add('on');
+      });
+    });
+  });
+
+  // ---- 记一笔：支出/收入分段 ----
+  document.querySelectorAll('.seg').forEach(function(sg){
+    sg.querySelectorAll('div').forEach(function(d){
+      d.addEventListener('click', function(){
+        sg.querySelectorAll('div').forEach(function(x){ x.classList.remove('on','exp','inc'); });
+        d.classList.add('on');
+        d.classList.add(d.textContent.trim() === '支出' ? 'exp' : 'inc');
+      });
     });
   });
 })();

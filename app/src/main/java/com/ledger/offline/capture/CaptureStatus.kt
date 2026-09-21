@@ -29,8 +29,18 @@ object CaptureStatus {
     private const val KEY_LAST_IMPORT_AT = "last_import_at"
     private const val KEY_LAST_IMPORT_SUMMARY = "last_import_summary"
 
-    /** 超过这个天数没导入账单，就认为账目完整性在滑坡，需要显式告警（方案 §10 风险登记册） */
-    const val IMPORT_STALE_DAYS = 40
+    /**
+     * 超过这个天数没导入账单，就认为账目完整性在滑坡，需要显式告警（方案 §10 风险登记册）
+     *
+     * 取 35 = 30 天的月度导入周期 + 5 天宽限。原先取 40 是按「季度导入」的节奏留的余量，
+     * 但那会让账目残缺最长拖到 40 天——覆盖率停在 70~80% 的那段空白期，用户是看不见的
+     * （见 §10「用户忘记月度导入」）。既然 xlsx 导入是账目完整性的唯一兜底，
+     * 提醒就该贴着「一个月」这个真实周期走，而不是给它再留十天。
+     *
+     * 注意：这是**唯一**的阈值定义处。字符串文案（strings.xml 的 status_import_stale）
+     * 不带数字，改这里即可，不要在 UI 层再写一遍天数。
+     */
+    const val IMPORT_STALE_DAYS = 35
 
     private const val DAY_MS = 24 * 60 * 60 * 1000L
 
