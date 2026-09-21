@@ -471,7 +471,7 @@
 
   <!-- ============ 色板与字号 ============ -->
   <h2 class="sec">色板与字号阶梯 <small>沿用现有 colors.xml，仅新增分类色</small></h2>
-  <p class="sec-note">基础色全部来自 <code>res/values/colors.xml</code>，一处未改。新增的只有「分类识别色」——10 个分类 + 未分类共 11 色。</p>
+  <p class="sec-note">基础色全部来自 <code>res/values/colors.xml</code>，一处未改。新增的只有「分类识别色」——11 个分类 + 未分类共 12 色。</p>
   <div class="grid-2">
     <div class="card">
       <h4 style="margin:0 0 10px;font-size:14px">基础色（现有）</h4>
@@ -492,6 +492,7 @@
       <h4 style="margin:0 0 10px;font-size:14px">分类识别色（新增）</h4>
       <div class="swatches">
         <div class="sw"><i style="background:#D9730D"></i><b>餐饮</b>#D9730D</div>
+        <div class="sw"><i style="background:#A0522D"></i><b>咖啡简餐</b>#A0522D</div>
         <div class="sw"><i style="background:#185FA5"></i><b>交通</b>#185FA5</div>
         <div class="sw"><i style="background:#B4488A"></i><b>购物</b>#B4488A</div>
         <div class="sw"><i style="background:#6B5B95"></i><b>居住</b>#6B5B95</div>
@@ -644,6 +645,7 @@
           </div>
           <div class="catgrid">
             <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
+            <div class="cat"><i style="background:#A0522D"></i>咖啡简餐</div>
             <div class="cat"><i style="background:#185FA5"></i>交通</div>
             <div class="cat"><i style="background:#B4488A"></i>购物</div>
             <div class="cat"><i style="background:#6B5B95"></i>居住</div>
@@ -653,6 +655,7 @@
             <div class="cat"><i style="background:#E0567A"></i>红包</div>
             <div class="cat"><i style="background:#1E8449"></i>教育</div>
             <div class="cat"><i style="background:#8A8A82"></i>其他</div>
+            <div class="cat"><i style="background:#8A8A82"></i>新增…</div>
           </div>
           <div class="acts">
             <div class="btn ghost" data-close="sheet1">仅改这一笔</div>
@@ -693,9 +696,10 @@
           <div>收入</div>
         </div>
 
-        <div class="catwrap">
-          <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
-          <div class="cat"><i style="background:#185FA5"></i>交通</div>
+          <div class="catwrap">
+            <div class="cat on"><i style="background:#D9730D"></i>餐饮</div>
+            <div class="cat"><i style="background:#A0522D"></i>咖啡简餐</div>
+            <div class="cat"><i style="background:#185FA5"></i>交通</div>
           <div class="cat"><i style="background:#B4488A"></i>购物</div>
           <div class="cat"><i style="background:#6B5B95"></i>居住</div>
           <div class="cat"><i style="background:#C0392B"></i>医疗</div>
@@ -704,7 +708,7 @@
           <div class="cat"><i style="background:#E0567A"></i>红包</div>
           <div class="cat"><i style="background:#1E8449"></i>教育</div>
           <div class="cat"><i style="background:#8A8A82"></i>其他</div>
-          <div class="cat"><i style="background:#8A8A82"></i>新增</div>
+          <div class="cat"><i style="background:#8A8A82"></i>新增…</div>
         </div>
 
         <div class="amountbox">
@@ -891,7 +895,7 @@
 
           <div class="catgrid">
             <div class="cat"><i style="background:#D9730D"></i>餐饮</div>
-            <div class="cat on"><i style="background:#8E44AD"></i>咖啡简餐</div>
+            <div class="cat on"><i style="background:#A0522D"></i>咖啡简餐</div>
             <div class="cat"><i style="background:#185FA5"></i>交通</div>
             <div class="cat"><i style="background:#B4488A"></i>购物</div>
             <div class="cat"><i style="background:#6B5B95"></i>居住</div>
@@ -1003,12 +1007,12 @@
             </div>
 
             <div class="srcline">
-              <div class="sd" style="color:#1A1A18"><b>核对：</b>96 + 24 + 8 + 2 = 130 行，与文件行数一致 ✓</div>
+              <div class="sd" style="color:#1A1A18"><b>核对：</b>96 + 24 + 8 + <span style="color:#6B6B66">0（不计收支）</span> + 2 = 130 行，与文件行数一致 ✓</div>
               <div class="reason">
                 <div class="rh">丢弃 2 笔 · 原因明细</div>
                 <div class="ri"><span>金额无法解析（列为空）</span><b>1</b></div>
                 <div class="ri"><span>状态为「已全额退款」</span><b>1</b></div>
-                <div class="ri" style="color:#6B6B66"><span>另：不计收支 / 中性交易</span><b>0</b></div>
+                <div class="ri" style="color:#6B6B66"><span>不计收支（独立桶，<u>不计入上方丢弃</u>）</span><b>0</b></div>
               </div>
             </div>
 
@@ -1437,6 +1441,11 @@
     <div class="card constraint">
       <h4>落地顺序建议</h4>
       <ul>
+        <li><b>第零步（前置）：先定分类集以谁为准</b>。本稿统一后的 11 个分类与
+            <code>classify_rules.json</code> 的 10 个分类<b>集合不同</b>：本稿有「红包」「咖啡简餐」「居住」，
+            代码里对应的是「生活缴费」「投资理财」「住房」（且「红包」在代码里只是 <code>transfer</code>
+            的一个关键词、「咖啡」归 <code>food</code>）。<b>不先定就拆 XML，布局与规则文件会对不上。</b>
+            建议以代码为准——反向改规则文件要动分类 id 空间，并影响 merge 回填的 seed 优先级，代价高一个量级</li>
         <li><b>第一步只做不加功能的改造</b>：底部导航 + 按日分组 + 点击修正 + 状态条压行。
             这几项不碰数据层，风险最低，改完就能看</li>
         <li><b>第二步做导入结果 Dialog</b>：纯 UI，也不碰数据层</li>

@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.ledger.offline.R
+import com.ledger.offline.data.MergeMatcher
 import com.ledger.offline.data.model.Direction
 import com.ledger.offline.data.model.Transaction
 import com.ledger.offline.databinding.ItemTransactionBinding
@@ -38,10 +39,14 @@ class TransactionAdapter(
         fun bind(txn: Transaction) = with(binding) {
             tvMerchant.text = txn.merchant.ifBlank { "未识别商户" }
 
-            val sourceLabel = when (txn.sourceId) {
-                "wechat" -> "微信"
-                "alipay" -> "支付宝"
-                "csv" -> "账单导入"
+            // 用前缀判断，而不是把 "bill_xlsx" / "bill_csv" 再抄一遍：
+            // 这个前缀是 MergeMatcher 判重的硬判据（决定宽松指纹那扇门给谁开），
+            // 标签只是它的另一种读法。抄一份字面量就等于造出第四处定义，
+            // 下次加新来源时必然再漂一次（2026-09-17 的 "csv" 就是这么留下来的死分支）。
+            val sourceLabel = when {
+                txn.sourceId.startsWith(MergeMatcher.BILL_SOURCE_PREFIX) -> "账单导入"
+                txn.sourceId == "wechat" -> "微信"
+                txn.sourceId == "alipay" -> "支付宝"
                 else -> "其它"
             }
             val autoLabel = if (txn.autoClassified) "" else " · 已手动修正"
