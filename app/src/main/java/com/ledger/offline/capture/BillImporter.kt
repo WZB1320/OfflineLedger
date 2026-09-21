@@ -105,7 +105,7 @@ object BillImporter {
                     txnNo = rec.txnNo,
                     rawText = rec.text,
                     seedCategoryId = rec.seedCategoryId
-                )) {
+                ).outcome) {
                     TransactionDao.MergeOutcome.ADDED -> added++
                     TransactionDao.MergeOutcome.BACKFILLED -> merged++
                     TransactionDao.MergeOutcome.DUPLICATE -> duplicated++

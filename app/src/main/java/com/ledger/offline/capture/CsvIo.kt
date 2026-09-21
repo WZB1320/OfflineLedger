@@ -5,12 +5,10 @@ import android.net.Uri
 import com.ledger.offline.core.ServiceLocator
 import com.ledger.offline.data.TransactionDao
 import com.ledger.offline.data.model.Direction
-import com.ledger.offline.data.model.Transaction
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 import java.nio.charset.CodingErrorAction
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 /**
@@ -102,40 +100,11 @@ object CsvIo {
                 txnNo = txnNo,
                 rawText = goods
             )
-            if (outcome == TransactionDao.MergeOutcome.ADDED) added++ else skipped++
+            if (outcome.outcome == TransactionDao.MergeOutcome.ADDED) added++ else skipped++
         }
 
         return ImportResult(added, skipped)
     }
-
-    // ------------------------------------------------------------ 导出
-
-    fun export(context: Context, uri: Uri): Int {
-        val all = ServiceLocator.dao.queryRange(0L, Long.MAX_VALUE, limit = 100_000)
-        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
-        val sb = StringBuilder()
-        sb.append('\uFEFF')                                   // BOM，避免 Excel 打开乱码
-        sb.append("交易时间,交易对方,商品,收/支,金额(元),分类,交易单号,来源\n")
-        for (t in all) {
-            sb.append(formatter.format(Date(t.occurredAt))).append(',')
-            sb.append(escape(t.merchant)).append(',')
-            sb.append(escape(t.note)).append(',')
-            sb.append(if (t.direction == Direction.EXPENSE) "支出" else "收入").append(',')
-            sb.append(TransactionDao.formatAmount(t.amount)).append(',')
-            sb.append(escape(t.categoryName)).append(',')
-            sb.append(escape(t.txnNo)).append(',')
-            sb.append(escape(t.sourceId)).append('\n')
-        }
-        return runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray(Charsets.UTF_8)) }
-            all.size
-        }.getOrDefault(0)
-    }
-
-    fun exportToFile(context: Context, file: java.io.File): Int =
-        export(context, Uri.fromFile(file))
-
-    fun allForBackup(): List<Transaction> = ServiceLocator.dao.queryRange(0L, Long.MAX_VALUE, 100_000)
 
     // ------------------------------------------------------------ 工具
 
@@ -215,9 +184,6 @@ object CsvIo {
             else -> null
         }
     }
-
-    private fun escape(v: String): String =
-        if (v.contains(',') || v.contains('"')) "\"" + v.replace("\"", "\"\"") + "\"" else v
 
     private val TIME_PATTERNS = listOf(
         "yyyy-MM-dd HH:mm:ss",

@@ -7,8 +7,13 @@
     <string name="accessibility_description">仅在微信、支付宝账单页面读取金额与收款方，用于本地记账。数据不出本机。</string>
 
     <string name="permission_hint_title">还差一步：开启支付通知监听</string>
-    <string name="permission_hint_body">本应用需要读取微信 / 支付宝的支付到账通知才能自动记账。\n所有数据仅保存在本机，应用没有网络权限，无法外传。</string>
+    <string name="permission_hint_body">开启后，微信 / 支付宝的支付到账通知会被自动记成一笔账。\n所有数据仅保存在本机，应用没有网络权限，无法外传。</string>
     <string name="permission_grant">前往授权</string>
+    <!-- 系统那个页面里列的是「申请读取通知的应用」，不是微信 / 支付宝。
+         用户第一次进去找不到微信 / 支付宝是必然的，所以把疑问直接做成入口。 -->
+    <string name="permission_help">列表里没有微信 / 支付宝？</string>
+    <string name="permission_help_title">要勾选的是「离线记账」，不是微信 / 支付宝</string>
+    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>，所以里面只有「离线记账」。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。</string>
 
     <string name="service_hint_title">通知监听没有真正生效</string>
     <string name="service_hint_body">系统里已经授权了通知使用权，但监听服务没有被拉起来，收不到支付通知。\n建议先到系统设置把「离线记账」的通知使用权关掉再打开；再把它加入后台白名单 / 允许自启动，否则系统随时会把它清掉。</string>
@@ -28,15 +33,59 @@
 
     <string name="capture_settings">采集设置</string>
 
+    <!-- 来源标签：读的是 sourceId，值本身由 parser_rules.json 的 sources[].id 决定 -->
+    <string name="source_bill">账单</string>
+    <string name="source_wechat">微信</string>
+    <string name="source_alipay">支付宝</string>
+    <string name="source_manual">手动</string>
+    <string name="source_other">其它</string>
+    <string name="meta_fix_hint">点此修正</string>
+
     <string name="tab_flow">流水</string>
+    <string name="tab_add">＋ 记一笔</string>
     <string name="tab_stats">统计</string>
 
-    <string name="empty_hint">暂无记录。\n开启通知监听后，收到微信 / 支付宝支付通知即会自动记录。</string>
+    <string name="month_prev">上一月</string>
+    <string name="month_next">下一月</string>
+    <string name="balance_label">结余</string>
 
-    <string name="import_csv">导入账单 CSV</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_expense">支出</string>
+    <string name="filter_income">收入</string>
+    <string name="filter_uncat">未分类 %1$d</string>
+
+    <string name="empty_hint">这个月还没有记录。\n翻到上个月看看，或点右上「导入」把账单文件导进来。</string>
+
+    <string name="import_bill">导入</string>
+    <string name="import_result_title">导入结果</string>
     <string name="import_done">导入完成：新增 %1$d 条，跳过重复 %2$d 条</string>
+
+    <string name="add_title">记一笔</string>
+    <string name="add_cancel">取消</string>
+    <string name="add_amount_label">金额</string>
+    <string name="add_merchant_hint">商户 / 备注</string>
+    <string name="add_merchant_optional">选填</string>
+    <string name="add_time_modify">修改</string>
+    <string name="add_save">保存</string>
+    <string name="add_need_amount">请先输入金额</string>
+    <string name="add_saved">已记一笔</string>
+    <string name="add_dup_hint">与已有记录重复，未重复记账</string>
 
     <string name="stat_month_expense">本月支出</string>
     <string name="stat_month_income">本月收入</string>
+    <!-- 翻到非当前月时，汇总卡的标题不能再写「本月」 -->
+    <string name="stat_expense">支出</string>
     <string name="stat_count">记录条数</string>
+    <string name="stat_category_title">分类占比</string>
+    <string name="stat_count_hint">共 %1$d 笔</string>
+    <string name="check_title">未分类占比（合并口径）</string>
+    <string name="check_ok">达标 ✓</string>
+    <string name="check_fail">超线 ✗</string>
+    <string name="check_foot">= 无商户名 + 有商户未命中，同为兜底分类　·　验收线 15%　·　条形按占验收线的比例绘制</string>
+
+    <string name="fix_category_title">把这笔归到哪一类？</string>
+    <string name="fix_remember">记住并应用</string>
+    <string name="fix_once">仅改这一笔</string>
+    <string name="fix_unknown_note">这笔没有商户名（通知不带收款方）。修正会按「未识别商户」这个桶生效，影响所有同样缺商户名的记录；更彻底的做法是导入一次账单，把真实商户名回填过来。</string>
+    <string name="fixed_toast">已记住：%1$s → %2$s</string>
 </resources>

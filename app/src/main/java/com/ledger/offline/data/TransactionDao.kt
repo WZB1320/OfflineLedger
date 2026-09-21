@@ -15,6 +15,18 @@ class TransactionDao(private val db: LedgerDb) {
     enum class MergeOutcome { ADDED, BACKFILLED, DUPLICATE }
 
     /**
+     * 融合结论 + 新增记录的 rowId。
+     *
+     * insertedId 只在 ADDED 时非空：手动记账「先融合落库、再按用户选的分类修正」需要拿到
+     * 刚插入那条的 id；BACKFILLED / DUPLICATE 时融合目标是既有记录，不该再被手动表单覆盖。
+     */
+    data class MergeResult(val outcome: MergeOutcome, val insertedId: Long?) {
+        companion object {
+            fun duplicate() = MergeResult(MergeOutcome.DUPLICATE, null)
+        }
+    }
+
+    /**
      * 双路融合入口：账单导入必须走这条，而不是直接 [insert]。
      *
      * 先按 [MergeMatcher] 的四级规则找既有记录：
@@ -32,7 +44,7 @@ class TransactionDao(private val db: LedgerDb) {
         txn: Transaction,
         categoryFromOfficialSeed: Boolean = false,
         fallbackCategoryId: String = "other"
-    ): MergeOutcome {
+    ): MergeResult {
         val incoming = MergeMatcher.Candidate(
             amount = txn.amount,
             direction = txn.direction,
@@ -48,11 +60,16 @@ class TransactionDao(private val db: LedgerDb) {
             FieldCipher.amountHash(txn.amount), txn.direction, txn.occurredAt, txn.txnNo
         )
         val target = MergeMatcher.decide(incoming, candidates).target
-            ?: return if (insert(txn)) MergeOutcome.ADDED else MergeOutcome.DUPLICATE
+            ?: return insertReturningId(txn).let { id ->
+                if (id != -1L) MergeResult(MergeOutcome.ADDED, id)
+                else MergeResult.duplicate()
+            }
 
         val plan = MergeMatcher.backfillPlan(target, incoming, categoryFromOfficialSeed, fallbackCategoryId)
-            ?: return MergeOutcome.DUPLICATE
-        return if (applyBackfill(target.id, plan)) MergeOutcome.BACKFILLED else MergeOutcome.DUPLICATE
+            ?: return MergeResult.duplicate()
+        return if (applyBackfill(target.id, plan)) {
+            MergeResult(MergeOutcome.BACKFILLED, null)
+        } else MergeResult.duplicate()
     }
 
     private fun loadCandidates(
@@ -120,12 +137,18 @@ class TransactionDao(private val db: LedgerDb) {
      * 注意：账单导入不要直接用它，要走 [mergeOrInsert]——否则「通知缺商户名」
      * 那批记录匹配不上，会重复记账。
      */
-    fun insert(txn: Transaction): Boolean {
+    fun insert(txn: Transaction): Boolean = insertReturningId(txn) != -1L
+
+    /**
+     * [insert] 的 rowId 版：-1 表示被去重拦下或写库失败。
+     * 主体只此一份，[insert] 是它的 Boolean 包装——两份实现必然漂移，不复制。
+     */
+    private fun insertReturningId(txn: Transaction): Long {
         val amountHash = FieldCipher.amountHash(txn.amount)
         val merchantHash = FieldCipher.merchantHash(txn.merchant)
 
         if (isDuplicate(amountHash, merchantHash, txn.direction, txn.occurredAt, txn.txnNo)) {
-            return false
+            return -1L
         }
 
         val values = ContentValues().apply {
@@ -142,7 +165,7 @@ class TransactionDao(private val db: LedgerDb) {
             put("note_enc", FieldCipher.encrypt(txn.note))
             put("auto_classified", if (txn.autoClassified) 1 else 0)
         }
-        return db.writableDatabase.insert("txn", null, values) != -1L
+        return db.writableDatabase.insert("txn", null, values)
     }
 
     private fun isDuplicate(

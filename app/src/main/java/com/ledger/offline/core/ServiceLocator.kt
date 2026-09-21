@@ -6,14 +6,13 @@ import com.ledger.offline.classify.Classifier
 import com.ledger.offline.classify.MerchantNormalizer
 import com.ledger.offline.crypto.FieldCipher
 import com.ledger.offline.data.LedgerDb
+import com.ledger.offline.data.MonthWindow
 import com.ledger.offline.data.TransactionDao
 import com.ledger.offline.data.model.Direction
 import com.ledger.offline.data.model.Transaction
 import com.ledger.offline.parse.ClassifyRules
 import com.ledger.offline.parse.ParsedTransaction
 import com.ledger.offline.parse.RuleStore
-import java.util.Calendar
-import java.util.Locale
 
 /**
  * 极简服务定位器。
@@ -53,7 +52,7 @@ object ServiceLocator {
      *
      * 返回融合结论：真的新增 / 回填了既有记录 / 判定为重复并丢弃。
      */
-    fun persist(parsed: ParsedTransaction, rawText: String = ""): TransactionDao.MergeOutcome =
+    fun persist(parsed: ParsedTransaction, rawText: String = ""): TransactionDao.MergeResult =
         mergeRecord(
             amount = parsed.amount,
             direction = parsed.direction,
@@ -82,9 +81,10 @@ object ServiceLocator {
         sourceId: String,
         txnNo: String = "",
         rawText: String = "",
+        note: String = "",
         seedCategoryId: String? = null
-    ): TransactionDao.MergeOutcome {
-        val built = build(amount, direction, merchantRaw, occurredAt, sourceId, txnNo, rawText, seedCategoryId)
+    ): TransactionDao.MergeResult {
+        val built = build(amount, direction, merchantRaw, occurredAt, sourceId, txnNo, rawText, note, seedCategoryId)
         return dao.mergeOrInsert(
             built.txn,
             // 用分类结果**实际来自哪里**，而不是「账单里有没有分类列」——
@@ -104,6 +104,7 @@ object ServiceLocator {
         sourceId: String,
         txnNo: String,
         rawText: String,
+        note: String,
         seedCategoryId: String?
     ): Built {
         val merchant = MerchantNormalizer.normalize(
@@ -120,6 +121,7 @@ object ServiceLocator {
                 occurredAt = occurredAt,
                 sourceId = sourceId,
                 txnNo = txnNo,
+                note = note,
                 autoClassified = classification.auto
             ),
             classification = classification
@@ -128,21 +130,36 @@ object ServiceLocator {
 
     /** 用户手动改分类：同时写入修正记忆，下次同商户自动命中 */
     fun correctCategory(txn: Transaction, categoryId: String, categoryName: String) {
-        dao.updateCategory(txn.id, categoryId, categoryName)
-        dao.rememberMerchant(txn.merchant, categoryId, categoryName)
+        correctCategory(txn.id, txn.merchant, categoryId, categoryName)
     }
 
-    fun monthRange(now: Long = System.currentTimeMillis()): Pair<Long, Long> {
-        val cal = Calendar.getInstance(Locale.CHINA).apply {
-            timeInMillis = now
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+    /**
+     * 上面那条的 id 版：手动记账刚落库时手里只有 rowId（[TransactionDao.MergeResult.insertedId]）。
+     *
+     * 修正记忆只在 merchant 是真实商户名时写：给「未识别商户」这个常量桶写记忆，
+     * 会让**所有**无商户名的记录（通知监听的天花板，量很大）被同一条记忆带偏分类。
+     *
+     * @param remember false = 只改这一笔，不写记忆（弹层里的「仅改这一笔」）。
+     */
+    fun correctCategory(
+        id: Long,
+        merchant: String,
+        categoryId: String,
+        categoryName: String,
+        remember: Boolean = true
+    ) {
+        dao.updateCategory(id, categoryId, categoryName)
+        if (remember && merchant != MerchantNormalizer.UNKNOWN_MERCHANT) {
+            dao.rememberMerchant(merchant, categoryId, categoryName)
         }
-        val start = cal.timeInMillis
-        cal.add(Calendar.MONTH, 1)
-        return start to cal.timeInMillis
     }
+
+    /**
+     * 指定月份的窗口 [月初, 下月初)。offsetMonths = 0 是当前月，-1 上一个月。
+     *
+     * 实现委托给 [MonthWindow]：它纯 Kotlin，能在 JVM 单测里直接断言跨月边界，
+     * 而 ServiceLocator 本身依赖数据库，本地测不了。同一份逻辑不放两处。
+     */
+    fun monthRange(now: Long = System.currentTimeMillis(), offsetMonths: Int = 0): Pair<Long, Long> =
+        MonthWindow.range(now, offsetMonths)
 }

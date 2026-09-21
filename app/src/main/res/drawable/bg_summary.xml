@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 汇总卡：深色底 + 圆角。设计稿不用 elevation 表达层级，这里也不用。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/brand_dark" />
+    <corners android:radius="12dp" />
+</shape>

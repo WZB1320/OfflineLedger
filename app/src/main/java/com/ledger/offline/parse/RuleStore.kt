@@ -5,7 +5,18 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-data class CategoryRule(val id: String, val name: String, val keywords: List<String>)
+data class CategoryRule(
+    val id: String,
+    val name: String,
+    val keywords: List<String>,
+    /** 分类识别色（#RRGGBB）。与 id / name 同源，见 classify_rules.json 的 colorNote */
+    val color: String = ""
+) {
+    companion object {
+        /** 规则文件里没写 color 时的最后兜底 */
+        const val DEFAULT_FALLBACK_COLOR = "#8A8A82"
+    }
+}
 
 data class ClassifyRules(
     val version: Int,
@@ -16,6 +27,15 @@ data class ClassifyRules(
         categories.firstOrNull { it.id == id } ?: if (fallback.id == id) fallback else null
 
     fun all(): List<CategoryRule> = categories + fallback
+
+    /**
+     * 取分类识别色：认不出的 id 一律退回 fallback 色，绝不返回空串——
+     * 空串会让 Color.parseColor 抛异常，在列表里表现为一行崩溃而不是一个灰点。
+     */
+    fun colorHex(id: String): String =
+        byId(id)?.color?.takeIf { it.isNotBlank() }
+            ?: fallback.color.takeIf { it.isNotBlank() }
+            ?: CategoryRule.DEFAULT_FALLBACK_COLOR
 }
 
 /**
@@ -157,12 +177,13 @@ object RuleStore {
             categories += CategoryRule(
                 id = o.getString("id"),
                 name = o.getString("name"),
-                keywords = o.optJSONArray("keywords").toStringList()
+                keywords = o.optJSONArray("keywords").toStringList(),
+                color = o.optString("color")
             )
         }
         val fb = root.optJSONObject("fallback")
         val fallback = if (fb != null) {
-            CategoryRule(fb.getString("id"), fb.getString("name"), emptyList())
+            CategoryRule(fb.getString("id"), fb.getString("name"), emptyList(), fb.optString("color"))
         } else {
             CategoryRule("other", "其他", emptyList())
         }

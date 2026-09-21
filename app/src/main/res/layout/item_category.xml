@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  分类格子，两处复用：记一笔的分类网格（6 列）、分类修正弹层的 4 列网格。
+  选中态靠代码改背景 + 文字色，不写 selector —— 因为边框色就是分类识别色之外的
+  品牌色，用 XML selector 做不到「边框＝品牌色、圆点＝分类色」两色并存。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/catRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp">
+
+    <View
+        android:id="@+id/vDot"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:layout_marginBottom="5dp" />
+
+    <TextView
+        android:id="@+id/tvName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:textColor="@color/text_primary"
+        android:textSize="11sp" />
+</LinearLayout>

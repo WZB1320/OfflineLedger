@@ -2,6 +2,7 @@
 <resources>
     <color name="brand">#185FA5</color>
     <color name="brand_dark">#042C53</color>
+    <color name="brand_soft">#E8F0F8</color>
     <color name="bg">#F7F7F5</color>
     <color name="surface">#FFFFFF</color>
     <color name="text_primary">#1A1A18</color>
@@ -9,4 +10,17 @@
     <color name="expense">#C0392B</color>
     <color name="income">#1E8449</color>
     <color name="divider">#E4E2DC</color>
+    <color name="warn">#B45309</color>
+    <color name="warn_soft">#FDF4E7</color>
+    <color name="danger_soft">#FDF2F0</color>
+
+    <!-- 深色汇总卡上的结余色：直接用 income 在深底上会糊，设计稿另给了一档亮绿 -->
+    <color name="balance">#8FD5A6</color>
+    <!-- 未分类行的底色 / 进度条底槽 / 提示卡底：都是「比 surface 更浅一档」的辅助面 -->
+    <color name="uncat_bg">#FFFCF6</color>
+    <color name="track_bg">#EFEDE7</color>
+    <color name="tip_bg">#FBFCFD</color>
+    <color name="kpi_hl_bg">#F4F9FD</color>
+    <!-- 状态圆点的「未连上」灰 -->
+    <color name="dot_off">#D0CDC5</color>
 </resources>
