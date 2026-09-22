@@ -50,6 +50,13 @@
     <string name="probe_no_text">（这条通知没有正文）</string>
     <string name="probe_clear">清空记录</string>
     <string name="probe_disabled">诊断已关闭，无记录。</string>
+    <string name="probe_refresh">刷新</string>
+    <string name="probe_unknown_label">未被放行的通知来源</string>
+    <string name="probe_unknown_none">无（服务没有收到任何通知）</string>
+    <string name="probe_unknown_off">诊断未开启，不记录</string>
+    <string name="probe_unknown_count">%1$d 次</string>
+    <string name="probe_unknown_more">…另有 %1$d 个</string>
+    <string name="probe_unknown_suspect">⚠ 上面出现了疑似支付 App 的包名：包名不在白名单里，通知在早筛就被丢了，需要补 parser_rules.json 的 packageNames。</string>
 
     <!-- 来源标签：读的是 sourceId，值本身由 parser_rules.json 的 sources[].id 决定 -->
     <string name="source_bill">账单</string>

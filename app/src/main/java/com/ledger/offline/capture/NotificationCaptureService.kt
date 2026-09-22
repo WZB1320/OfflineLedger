@@ -46,7 +46,14 @@ class NotificationCaptureService : NotificationListenerService() {
         val notification = sbn ?: return
         val pkg = notification.packageName ?: return
 
-        val rule = runCatching { RuleStore.parserRules(this).sourceFor(pkg) }.getOrNull() ?: return
+        val rule = runCatching { RuleStore.parserRules(this).sourceFor(pkg) }.getOrNull()
+        if (rule == null) {
+            // 早筛没过是整条链路里唯一「什么都不留」的分支：往后的 += 文本、正则、
+            // 入账、ProbeEntry 全都不会发生，而它和用户关掉通知 / 服务被 ROM 杀掉
+            // 在界面上长得一模一样——都是「最近通知」全空。留一个包名下去做区分。
+            runCatching { CaptureProbe.recordUnknown(this, pkg) }
+            return
+        }
 
         // 包名命中即记心跳，**不等解析成功**——我们要的是「通道活着」的证据，
         // 不是「解析规则够用」的证据。规则过期时同样需要看到服务在正常收通知。
@@ -82,7 +89,9 @@ class NotificationCaptureService : NotificationListenerService() {
 
         // 日志刻意不记金额与商户名：logcat 不是本应用私有的东西，
         // 而排查「有没有收到通知」只需要知道包名、来源与判定结果就够了。
-        Log.i(TAG, "notification pkg=$pkg src=${rule.id} " +
+        // probe= 是给 adb 看的：万一「诊断列表为空」，得能区分是没收到通知，
+        // 还是服务这侧读到的开关是关的（两者界面上一模一样）
+        Log.i(TAG, "notification pkg=$pkg src=${rule.id} probe=${CaptureProbe.isEnabled(this)} " +
             (parsed?.let { "accepted dir=${it.direction}" } ?: "dropped reason=${outcome.drop}"))
 
         val mergeResult = parsed?.let { runCatching { ServiceLocator.persist(it, "$title $text") }.getOrNull() }

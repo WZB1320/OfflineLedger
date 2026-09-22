@@ -35,6 +35,14 @@ object ProbeLog {
      */
     const val RESEND_WINDOW_MS = 60_000L
 
+    /**
+     * 「未放行来源」的聚合上限（按包名去重）。
+     *
+     * 与 [LIMIT] 的区别：这里不存通知原文，只存「哪个包名推了通知、推了几次、最后一次什么时候」，
+     * 所以按包名去重而不是按时序堆叠——无论来多少条，一个包名永远只占一格。
+     */
+    const val UNKNOWN_LIMIT = 20
+
     private const val SEP = '\u0001'
     private const val NULL = ""
 
@@ -76,6 +84,60 @@ object ProbeLog {
         out.add(entry)
         return if (out.size > limit) out.takeLast(limit) else out
     }
+
+    // ------------------------------------------------------------ 未放行来源
+
+    /**
+     * 一个「包名没进白名单」的通知来源，按包名聚合。
+     *
+     * ## 为什么连它都要留
+     * 采集服务的第一道门是包名早筛，命中才继续读文本。**早筛没通过就 return，
+     * 一个字节都不会写进 [ProbeEntry]**——于是「支付宝换了包名 / 装了非官方渠道版」
+     * 这种情况在诊断列表里表现为「一条都没有」，和「服务压根没收到通知」
+     * 长得一模一样（2026-09-22 真机踩中：用户开启诊断后再付一笔，列表仍然全空，
+     * 但拿不到任何证据区分这两种情况）。
+     *
+     * 补上这一层就能把两者分开：
+     *   - 列表里出现了 alipay 相关包名 ⇒ 包名不匹配，补 `parser_rules.json` 的 packageNames
+     *   - 列表里没有 ⇒ 通知真没到服务，去处理授权 / ROM 后台限制
+     *
+     * ## 为什么不记标题正文
+     * 它记录的是**所有**没被放行的 App（含通讯 / 资讯类），记原文等于把半个通知栏
+     * 的明文都抄一份，与本项目「字段级加密」的基线冲突更严重。包名足以回答问题。
+     */
+    data class UnknownSource(
+        val pkg: String,
+        val count: Int,
+        val lastAt: Long
+    )
+
+    /** 尾数是最新的：先摘掉重插，才能把它排到末尾 */
+    fun pushUnknown(
+        list: List<UnknownSource>,
+        pkg: String,
+        now: Long,
+        limit: Int = UNKNOWN_LIMIT
+    ): List<UnknownSource> {
+        val prev = list.firstOrNull { it.pkg == pkg }
+        val out = list.filterNot { it.pkg == pkg } + UnknownSource(pkg, (prev?.count ?: 0) + 1, now)
+        return if (out.size > limit) out.takeLast(limit) else out
+    }
+
+    fun encodeUnknown(list: List<UnknownSource>): String =
+        list.joinToString("\n") { "${it.pkg}|${it.count}|${it.lastAt}" }
+
+    fun decodeUnknown(text: String): List<UnknownSource> =
+        if (text.isBlank()) {
+            emptyList()
+        } else {
+            text.split('\n').mapNotNull { line ->
+                val p = line.split('|')
+                if (p.size != 3) return@mapNotNull null
+                val count = p[1].toIntOrNull() ?: return@mapNotNull null
+                val lastAt = p[2].toLongOrNull() ?: return@mapNotNull null
+                UnknownSource(p[0], count, lastAt)
+            }
+        }
 
     private fun encode(e: ProbeEntry): String = listOf(
         e.at.toString(),

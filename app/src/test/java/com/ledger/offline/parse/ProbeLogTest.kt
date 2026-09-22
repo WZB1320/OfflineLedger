@@ -118,4 +118,65 @@ class ProbeLogTest {
             assertTrue(reason.label.isNotBlank())
         }
     }
+
+    // ------------------------------------------------------------ 未被放行的来源
+
+    /**
+     * 这一组钉的是「包名早筛没通过」那一路的留痕。
+     *
+     * 它存在的理由：早筛不过就 return，[ProbeEntry] 一条都不会写，于是
+     * 「包名不在白名单」与「通知压根没到服务」在界面上完全无法区分
+     * （2026-09-22 真机：开诊断后再付一笔，「最近通知」仍然全空，零证据）。
+     * 这组数据是唯一的区分依据，聚合或编解码写错就是又一次「静默失明」。
+     */
+    @Test
+    fun `未放行来源按包名聚合而不是堆叠`() {
+        var list = emptyList<ProbeLog.UnknownSource>()
+        for (i in 1..5) list = ProbeLog.pushUnknown(list, "com.foo.bar", now = 100L + i)
+        assertEquals(1, list.size)
+        assertEquals(5, list[0].count)
+        assertEquals(105L, list[0].lastAt)   // 时间取最后一次
+    }
+
+    @Test
+    fun `未放行来源不同包名各占一格`() {
+        var list = emptyList<ProbeLog.UnknownSource>()
+        list = ProbeLog.pushUnknown(list, "com.a", now = 1L)
+        list = ProbeLog.pushUnknown(list, "com.b", now = 2L)
+        list = ProbeLog.pushUnknown(list, "com.a", now = 3L)
+        assertEquals(2, list.size)
+        // 最新更新的排到末尾：诊断页倒序展示时它就在最上面
+        assertEquals("com.a", list.last().pkg)
+        assertEquals(2, list.last().count)
+    }
+
+    @Test
+    fun `未放行来源超过上限保留最近的`() {
+        var list = emptyList<ProbeLog.UnknownSource>()
+        for (i in 1..30) list = ProbeLog.pushUnknown(list, "com.pkg$i", now = i.toLong())
+        assertEquals(ProbeLog.UNKNOWN_LIMIT, list.size)
+        assertEquals("com.pkg30", list.last().pkg)
+        assertTrue(list.none { it.pkg == "com.pkg1" })
+    }
+
+    @Test
+    fun `未放行来源编解码往返不丢字段`() {
+        var list = emptyList<ProbeLog.UnknownSource>()
+        list = ProbeLog.pushUnknown(list, "com.eg.android.AlipayGphone", now = 1_700_000_000_000L)
+        list = ProbeLog.pushUnknown(list, "com.eg.android.AlipayGphone", now = 1_700_000_000_001L)
+        val decoded = ProbeLog.decodeUnknown(ProbeLog.encodeUnknown(list))
+        assertEquals(1, decoded.size)
+        assertEquals("com.eg.android.AlipayGphone", decoded[0].pkg)
+        assertEquals(2, decoded[0].count)
+        assertEquals(1_700_000_000_001L, decoded[0].lastAt)
+    }
+
+    @Test
+    fun `未放行来源空串解码为空列表而不是崩`() {
+        assertTrue(ProbeLog.decodeUnknown("").isEmpty())
+        assertTrue(ProbeLog.decodeUnknown("   ").isEmpty())
+        // 残缺行不该连带丢掉其它行
+        val mixed = ProbeLog.decodeUnknown("com.a|2|100\nbroken-line\ncom.b|1|200")
+        assertEquals(2, mixed.size)
+    }
 }

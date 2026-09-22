@@ -18,6 +18,7 @@ object CaptureProbe {
     private const val PREF = "capture_probe"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_LOG = "log"
+    private const val KEY_UNKNOWN = "unknown_sources"
 
     fun isEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_ENABLED, false)
@@ -28,7 +29,10 @@ object CaptureProbe {
      */
     fun setEnabled(context: Context, on: Boolean) {
         val editor = prefs(context).edit().putBoolean(KEY_ENABLED, on)
-        if (!on) editor.remove(KEY_LOG)
+        if (!on) {
+            editor.remove(KEY_LOG)
+            editor.remove(KEY_UNKNOWN)
+        }
         editor.apply()
     }
 
@@ -38,12 +42,34 @@ object CaptureProbe {
         prefs(context).edit().putString(KEY_LOG, ProbeLog.encodeAll(list)).apply()
     }
 
+    /**
+     * 记下一个「包名没通过早筛」的来源。
+     *
+     * 这是区分「支付宝通知没到服务」与「包名不在白名单」的唯一办法——
+     * 早筛没过就直接 return，不会留下任何 [ProbeEntry]，
+     * 两种情况都表现为「最近通知」全空。
+     *
+     * 只存包名不存原文：这里会经过**所有** App 的通知，记原文等于抄半个通知栏。
+     */
+    fun recordUnknown(context: Context, pkg: String) {
+        if (!isEnabled(context)) return
+        val list = ProbeLog.pushUnknown(unknownSources(context), pkg, System.currentTimeMillis())
+        prefs(context).edit().putString(KEY_UNKNOWN, ProbeLog.encodeUnknown(list)).apply()
+    }
+
+    /** 没被放行的通知来源，最近更新的在末尾 */
+    fun unknownSources(context: Context): List<ProbeLog.UnknownSource> =
+        ProbeLog.decodeUnknown(prefs(context).getString(KEY_UNKNOWN, "").orEmpty())
+
     /** 最近的通知记录，最新的一条在末尾 */
     fun recent(context: Context): List<ProbeEntry> =
         ProbeLog.decodeAll(prefs(context).getString(KEY_LOG, "").orEmpty())
 
     fun clear(context: Context) {
-        prefs(context).edit().remove(KEY_LOG).apply()
+        prefs(context).edit()
+            .remove(KEY_LOG)
+            .remove(KEY_UNKNOWN)
+            .apply()
     }
 
     private fun prefs(context: Context) =

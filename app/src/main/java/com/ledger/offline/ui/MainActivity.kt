@@ -875,6 +875,18 @@ class MainActivity : AppCompatActivity() {
     private fun showCaptureSettings() {
         val status = captureSnapshot()
         val container = verticalContainer()
+        val entries = CaptureProbe.recent(this)
+        val unknown = CaptureProbe.unknownSources(this).asReversed()
+
+        // 分诊结论放在最上面：把「授权 / 心跳 / 最近通知 / 未被放行的来源」合成一句人话。
+        // 把四行原始数据摊开让人自己推导已经失败过一次——上一轮只看到「心跳有、列表空」
+        // 就判成链路打通，漏掉了「包名不在白名单」这条本该先排除的可能。
+        container.addView(TextView(this).apply {
+            text = triageConclusion(status, entries, unknown)
+            setTextColor(getColor(if (status.granted) R.color.brand else R.color.warn))
+            textSize = 13f
+            setPadding(0, 0, 0, dp(8))
+        })
 
         // 系统授权记录的原文。「明明勾了却显示未授权」的唯一仲裁者：
         // 这里空着＝系统里确实没有授权记录，去勾；有内容但没有本 App＝勾的是别的应用。
@@ -907,6 +919,40 @@ class MainActivity : AppCompatActivity() {
             textSize = 13f
         })
 
+        // 未被放行的通知来源（只有包名，没有原文）。
+        // 「最近通知」全空时这是唯一的线索：里面出现了支付宝 / 微信的包名 ⇒ 包名不在
+        // 白名单，早筛就把它丢了；连它们的影子都没有 ⇒ 通知压根没到服务，
+        // 该去处理授权 / ROM 后台限制。两种情况界面上完全一样，没有这一栏只能靠猜。
+        val unknownFmt = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
+        val suspect = unknown.firstOrNull { looksLikePaymentPkg(it.pkg) }
+        container.addView(TextView(this).apply {
+            text = buildString {
+                append(getString(R.string.probe_unknown_label)).append("：")
+                if (unknown.isEmpty()) {
+                    append(
+                        if (CaptureProbe.isEnabled(this@MainActivity)) {
+                            getString(R.string.probe_unknown_none)
+                        } else {
+                            getString(R.string.probe_unknown_off)
+                        }
+                    )
+                } else {
+                    append("\n")
+                    for (u in unknown.take(6)) {
+                        append("  ").append(u.pkg)
+                        append("  ").append(getString(R.string.probe_unknown_count, u.count))
+                        append("  ").append(unknownFmt.format(Date(u.lastAt)))
+                        append("\n")
+                    }
+                    if (unknown.size > 6) append("  …").append(getString(R.string.probe_unknown_more, unknown.size - 6))
+                }
+                if (suspect != null) append("\n").append(getString(R.string.probe_unknown_suspect))
+            }
+            setTextColor(getColor(if (suspect != null) R.color.warn else R.color.text_secondary))
+            textSize = 11f
+            setPadding(0, 0, 0, dp(8))
+        })
+
         // 诊断开关：默认关。存的是通知原文（含金额 / 商户名），
         // 与「字段级加密」的基线相悖，只能由用户自己决定是否临时开启。
         val toggle = CheckBox(this).apply {
@@ -924,7 +970,6 @@ class MainActivity : AppCompatActivity() {
             textSize = 11f
         })
 
-        val entries = CaptureProbe.recent(this)
         val viewLink = TextView(this).apply {
             text = if (CaptureProbe.isEnabled(this@MainActivity)) {
                 getString(R.string.probe_view, entries.size)
@@ -953,6 +998,48 @@ class MainActivity : AppCompatActivity() {
         viewLink.setOnClickListener {
             if (CaptureProbe.isEnabled(this)) showProbeList()
         }
+    }
+
+    /**
+     * 「有通知却没记账」的分诊结论，按顺序逐个排除。
+     *
+     * 四个原始信号（是否授权 / 服务有没有连上过 / 最近一次目标通知 / 未被放行的来源）
+     * 之前分散在状态条和诊断开关两处，靠人拼成结论已经失败过一次：
+     * 上一轮只看到「心跳有、列表空」就宣布链路打通，漏掉了「包名不在白名单」
+     * 这条本该第一个排除的可能。这里按可能性从高到低排除，直接给出下一步动作。
+     */
+    private fun triageConclusion(
+        status: CaptureStatus.Snapshot,
+        entries: List<ProbeLog.ProbeEntry>,
+        unknown: List<ProbeLog.UnknownSource>
+    ): String {
+        if (!status.granted) {
+            return "① 系统里还没有本应用的授权记录：点底部「重新绑定」去系统页勾选「我的账单 · 支付通知监听」。"
+        }
+        if (!status.everConnected) {
+            return "② 已授权但监听服务从未连上：装包后系统要重新绑定一次。先点「重新绑定」（在系统页把开关关掉再打开），不行的话重启手机。"
+        }
+        val paymentUnknown = unknown.firstOrNull { looksLikePaymentPkg(it.pkg) }
+        if (paymentUnknown != null) {
+            return "③ 收到过「${paymentUnknown.pkg}」的通知共 ${paymentUnknown.count} 次，但包名不在白名单里，早筛阶段就被丢了。把这个包名发我，去 parser_rules.json 补 packageNames。"
+        }
+        if (entries.isEmpty() && status.lastEventAt > 0L) {
+            return "④ 最近收到过目标 App 的通知（${status.daysSinceEvent()} 天前），但诊断里没有它：那条是在打开诊断开关之前到的，开关不追溯历史。请留在本页，再付一笔（换个金额），然后回来刷新。"
+        }
+        if (entries.isNotEmpty()) {
+            val dropped = entries.count { !it.accepted }
+            return "⑤ 最近 ${entries.size} 条通知，其中 $dropped 条没入账。点「查看最近通知」，每条下面写着卡在哪一关。"
+        }
+        if (unknown.isEmpty()) {
+            return "⑥ 服务连上了，但一条通知都没收到过（连未被放行的 App 都没有）：去确认支付宝 / 微信的「系统通知」开关是开着的，并检查本 App 有没有被 ROM 的省电策略冻结。"
+        }
+        return "⑦ 服务在收通知（有 ${unknown.size} 个未被放行的来源），但里面没有微信 / 支付宝。留在本页再付一笔，看它会不会出现。"
+    }
+
+    /** 包名看着像支付 App：用于在「未被放行的来源」里把真正该看的几个标红 */
+    private fun looksLikePaymentPkg(pkg: String): Boolean {
+        val p = pkg.lowercase(Locale.ROOT)
+        return PAYMENT_PKG_HINTS.any { p.contains(it) }
     }
 
     /**
@@ -1016,9 +1103,16 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(R.string.probe_title)
             .setView(scroll)
-            .setPositiveButton(R.string.probe_clear) { _, _ ->
+            // 列表是「打开时读一次」的快照，付款完还停在同一个弹窗里是看不到新记录的——
+            // 给一个显式刷新，别让用户把快照陈旧误读成「没采集到」
+            .setPositiveButton(R.string.probe_refresh) { d, _ ->
+                d.dismiss()
+                showProbeList()
+            }
+            .setNeutralButton(R.string.probe_clear) { d, _ ->
                 CaptureProbe.clear(this)
-                toast("已清空")
+                d.dismiss()
+                showProbeList()
             }
             .setNegativeButton("关闭", null)
             .show()
@@ -1157,5 +1251,12 @@ class MainActivity : AppCompatActivity() {
 
         /** 最多往前翻多少个月 */
         private const val MIN_MONTH_OFFSET = -24
+
+        /**
+         * 包名里出现这些字样就当「疑似支付 App」。
+         * 只用来在未被放行的来源里把该看的几行标红，不做任何放行判断——
+         * 放行只能由 `parser_rules.json` 的 packageNames 决定。
+         */
+        private val PAYMENT_PKG_HINTS = listOf("alipay", "tencent", "weixin", "unionpay", "pay")
     }
 }
