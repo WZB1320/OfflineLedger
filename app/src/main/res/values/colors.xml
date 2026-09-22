@@ -23,4 +23,7 @@
     <color name="kpi_hl_bg">#F4F9FD</color>
     <!-- 状态圆点的「未连上」灰 -->
     <color name="dot_off">#D0CDC5</color>
+    <!-- 选中行的底色。刻意写成 brand_soft 的别名而不是复制一份色值：
+         同一个语义色有两处定义，迟早有一处在改 UI 时被漏掉 -->
+    <color name="row_selected">@color/brand_soft</color>
 </resources>

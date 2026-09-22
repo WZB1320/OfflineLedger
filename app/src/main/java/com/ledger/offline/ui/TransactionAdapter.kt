@@ -3,6 +3,7 @@ package com.ledger.offline.ui
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.ledger.offline.R
@@ -23,9 +24,15 @@ import java.util.Locale
  *
  * 分组头带上当日支出小计（设计稿屏 1），所以「分档」与「求和」是同一遍扫描完成的
  * （[FlowList.group]），这里只负责渲染，不再自己算一遍——两处各算一次迟早对不上。
+ *
+ * 选中态由 [selectedId] 驱动：点一下高亮、右侧浮现修改 / 删除，再点一下收起。
+ * 同一时刻只有一行处于选中态——两行同时开着操作区会把列表弄得很吵。
  */
 class TransactionAdapter(
-    private val onLongClick: (Transaction) -> Unit
+    private val onRowClick: (Transaction) -> Unit,
+    private val onEdit: (Transaction) -> Unit,
+    private val onDelete: (Transaction) -> Unit,
+    private val onLongPress: (Transaction) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var entries: List<FlowList.Entry> = emptyList()
@@ -33,12 +40,37 @@ class TransactionAdapter(
     /** 分类 id → 识别色。由外部注入（来自 classify_rules.json），本类不内置分类名单 */
     private var colorOf: (String) -> String = { "#8A8A82" }
 
+    private var selectedId: Long? = null
+
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.CHINA)
 
     fun submit(entries: List<FlowList.Entry>, colorOf: (String) -> String) {
         this.entries = entries
         this.colorOf = colorOf
         notifyDataSetChanged()
+    }
+
+    /**
+     * 切换选中行。同一 id 再传一次＝不变。
+     *
+     * 只刷新受影响的两格而不是整表：整表 notifyDataSetChanged 会让 RecyclerView
+     * 重绑所有可见行，点一下闪一下，长时间看很累。
+     */
+    fun setSelected(id: Long?) {
+        if (selectedId == id) return
+        val old = indexOfRow(selectedId)
+        val new = indexOfRow(id)
+        selectedId = id
+        if (old >= 0) notifyItemChanged(old)
+        if (new >= 0) notifyItemChanged(new)
+    }
+
+    fun selectedId(): Long? = selectedId
+
+    /** @return 该 id 的行在 entries 中的位置；不在列表里返回 -1 */
+    private fun indexOfRow(id: Long?): Int {
+        id ?: return -1
+        return entries.indexOfFirst { it is FlowList.Entry.Row && it.txn.id == id }
     }
 
     override fun getItemViewType(position: Int): Int =
@@ -84,11 +116,21 @@ class TransactionAdapter(
                 root.context.getColor(if (unknown) R.color.warn else R.color.text_primary)
             )
 
+            val selected = selectedId == txn.id
+
             // 无商户名的行给一层极浅底色：这是「该补商户名」的信号，
             // 也是通知监听那条路的天花板——用户得看得见它有多少
-            rowRoot.setBackgroundColor(
-                root.context.getColor(if (unknown) R.color.uncat_bg else R.color.surface)
+            rowContent.setBackgroundColor(
+                root.context.getColor(
+                    when {
+                        selected -> R.color.row_selected
+                        unknown -> R.color.uncat_bg
+                        else -> R.color.surface
+                    }
+                )
             )
+            vSelectBar.visibility = if (selected) View.VISIBLE else View.GONE
+            rowActions.visibility = if (selected) View.VISIBLE else View.GONE
 
             vDot.background = dotDrawable(colorOf(txn.categoryId), hollow = unknown)
 
@@ -117,7 +159,10 @@ class TransactionAdapter(
                 root.context.getColor(if (expense) R.color.expense else R.color.income)
             )
 
-            root.setOnLongClickListener { onLongClick(txn); true }
+            root.setOnClickListener { onRowClick(txn) }
+            root.setOnLongClickListener { onLongPress(txn); true }
+            btnEdit.setOnClickListener { onEdit(txn) }
+            btnDelete.setOnClickListener { onDelete(txn) }
         }
     }
 

@@ -3,6 +3,7 @@ package com.ledger.offline.ui
 import android.Manifest
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -11,8 +12,15 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Html
+import android.text.InputType
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +37,7 @@ import com.ledger.offline.capture.BillImporter
 import com.ledger.offline.capture.CaptureStatus
 import com.ledger.offline.classify.MerchantNormalizer
 import com.ledger.offline.core.ServiceLocator
+import com.ledger.offline.data.AmountInput
 import com.ledger.offline.data.CategoryBreakdown
 import com.ledger.offline.data.FlowList
 import com.ledger.offline.data.MergeMatcher
@@ -59,7 +68,6 @@ class MainActivity : AppCompatActivity() {
 
     // —— 记一笔的临时状态 ——
     private var addDirection = Direction.EXPENSE
-    private var addAmount = StringBuilder()
     private var addOccurredAt = System.currentTimeMillis()
 
     private val openBill = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -116,7 +124,17 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------ 绑定
 
     private fun bindViews() {
-        flowAdapter = TransactionAdapter { txn -> showCategorySheet(txn) }
+        flowAdapter = TransactionAdapter(
+            onRowClick = { txn ->
+                // 点同一行＝收起，点另一行＝换一行选中。选中态由 adapter 自己持有，
+                // Activity 不另存一份 id——两处存同一件事迟早对不上。
+                val next = if (flowAdapter.selectedId() == txn.id) null else txn.id
+                flowAdapter.setSelected(next)
+            },
+            onEdit = { txn -> showEditSheet(txn) },
+            onDelete = { txn -> confirmDelete(txn) },
+            onLongPress = { txn -> showCategorySheet(txn) }
+        )
         binding.recycler.layoutManager = LinearLayoutManager(this)
         binding.recycler.adapter = flowAdapter
 
@@ -124,10 +142,11 @@ class MainActivity : AppCompatActivity() {
         binding.statBars.layoutManager = LinearLayoutManager(this)
         binding.statBars.adapter = statAdapter
 
-        binding.btnGrant.setOnClickListener { openListenerSettings() }
-        binding.tvAuthHelp.setOnClickListener { showAuthHelp() }
-        binding.btnRestartListener.setOnClickListener { openListenerSettings() }
-        binding.btnWhitelist.setOnClickListener { showWhitelistGuide() }
+        // 授权条：按钮直接跳授权页，左侧文案是解释入口（为什么不占一行标题 + 一段正文：
+        // 它是「还差一步」的提醒，不是说明书，且授权后整条要消失）
+        binding.btnAuth.setOnClickListener { openListenerSettings() }
+        binding.tvAuthText.setOnClickListener { showAuthHelp() }
+        binding.btnService.setOnClickListener { openListenerSettings() }
         // 状态条本身就是入口：点它能看到「到底哪一环没在跑」
         binding.statusBar.setOnClickListener { showCaptureSettings() }
 
@@ -185,9 +204,28 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchPage(target: Page) {
         if (target == page && target != Page.ADD) return
+        val leavingAdd = page == Page.ADD
         page = target
         renderPage()
+        // 离开记一笔必须收起键盘：不收的话它会赖在别的页面上，
+        // 而系统键盘不会因为没有输入框就自己消失
+        if (leavingAdd) hideKeyboard()
         if (target != Page.ADD) refresh()
+        if (target == Page.ADD) focusAmountField()
+    }
+
+    /**
+     * 进「记一笔」就把光标落在金额上——点进来就是为了录一笔数，多一步点击没意义。
+     *
+     * 用 post 而不是直接 requestFocus：这一帧 pageAdd 刚从 GONE 变 VISIBLE，
+     * 布局还没量完，此时弹键盘会算出错误的可见区域，输入框被压到看不见的位置。
+     */
+    private fun focusAmountField() {
+        binding.etAmount.post {
+            if (binding.etAmount.requestFocus()) {
+                keyboard().showSoftInput(binding.etAmount, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
     }
 
     private fun renderPage() {
@@ -199,9 +237,9 @@ class MainActivity : AppCompatActivity() {
         // 摆在记一笔 / 统计页上会挤掉内容，也与该页的任务无关
         val status = captureSnapshot()
         val onFlow = page == Page.FLOW
-        binding.permissionBanner.visibility =
+        binding.authBar.visibility =
             if (onFlow && !status.granted) View.VISIBLE else View.GONE
-        binding.serviceBanner.visibility =
+        binding.serviceBar.visibility =
             if (onFlow && status.listenerStalled) View.VISIBLE else View.GONE
 
         binding.navFlowInd.setBackgroundColor(indicatorColor(page == Page.FLOW))
@@ -294,6 +332,13 @@ class MainActivity : AppCompatActivity() {
         val shown = FlowList.filter(all, filter, MerchantNormalizer.UNKNOWN_MERCHANT)
         flowAdapter.submit(FlowList.group(shown)) { rules.colorHex(it) }
 
+        // 选中的那一行可能已经不在窗口里了：改了时间翻到别的月、删掉、或切了筛选。
+        // 不清的话会出现「有一行高亮着，但屏幕上找不到它」的状态。
+        val selected = flowAdapter.selectedId()
+        if (selected != null && shown.none { it.id == selected }) {
+            flowAdapter.setSelected(null)
+        }
+
         binding.tvEmpty.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
         binding.recycler.visibility = if (shown.isEmpty()) View.GONE else View.VISIBLE
     }
@@ -352,35 +397,18 @@ class MainActivity : AppCompatActivity() {
         binding.catGrid.adapter = categoryAdapter
         binding.catGrid.isNestedScrollingEnabled = false
 
-        binding.tvAddCancel.setOnClickListener { switchPage(Page.FLOW) }
+        binding.tvAddCancel.setOnClickListener {
+            // 取消等于「放弃这次录入」，表单必须清空，否则下次点进来看到的是上一次的半截内容
+            resetAddForm()
+            switchPage(Page.FLOW)
+        }
+        binding.tvAddSave.setOnClickListener { saveManual() }
         binding.tvSegExpense.setOnClickListener { setAddDirection(Direction.EXPENSE) }
         binding.tvSegIncome.setOnClickListener { setAddDirection(Direction.INCOME) }
         setAddDirection(Direction.EXPENSE)
 
-        bindKey(binding.key0, "0")
-        bindKey(binding.key1, "1")
-        bindKey(binding.key2, "2")
-        bindKey(binding.key3, "3")
-        bindKey(binding.key4, "4")
-        bindKey(binding.key5, "5")
-        bindKey(binding.key6, "6")
-        bindKey(binding.key7, "7")
-        bindKey(binding.key8, "8")
-        bindKey(binding.key9, "9")
-        bindKey(binding.keyDot, ".")
-        binding.keyDel.setOnClickListener {
-            if (addAmount.isNotEmpty()) addAmount.deleteCharAt(addAmount.length - 1)
-            renderAmount()
-        }
-        binding.keySave.setOnClickListener { saveManual() }
-        binding.tvAddTime.setOnClickListener { pickTime() }
-        renderAmount()
+        binding.tvAddTime.setOnClickListener { pickTime(addOccurredAt) { addOccurredAt = it; renderAddTime() } }
         renderAddTime()
-    }
-
-    /** key0 / key1 / key2 走同一个实现，避免三个近乎相同的 lambda */
-    private fun bindKey(view: TextView, digit: String) {
-        view.setOnClickListener { appendAmount(digit) }
     }
 
     private fun setAddDirection(direction: Direction) {
@@ -399,45 +427,39 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun appendAmount(token: String) {
-        if (token == "." && addAmount.contains(".")) return
-        if (token != "." && addAmount.contains(".")) {
-            val decimals = addAmount.toString().substringAfter('.')
-            if (decimals.length >= 2) return
-        }
-        // 首位不允许就是小数点：显示成「¥.5」没有意义
-        if (token == "." && addAmount.isEmpty()) addAmount.append("0")
-        if (addAmount.length >= 12) return
-        addAmount.append(token)
-        renderAmount()
-    }
-
-    private fun renderAmount() {
-        binding.tvAmountInput.text = "¥" + (addAmount.toString().ifEmpty { "0" })
-    }
-
-    private fun renderAddTime() {
-        val cal = Calendar.getInstance().apply { timeInMillis = addOccurredAt }
-        binding.tvAddTime.text = String.format(
+    /**
+     * 「9月21日 14:05」。
+     *
+     * 记一笔与修改弹窗两处显示同一个字段，各写一遍格式化就会有一处漏掉补零。
+     */
+    private fun timeLabel(millis: Long): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = millis }
+        return String.format(
             Locale.CHINA, "%d月%d日 %02d:%02d",
             cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH),
             cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE)
         )
     }
 
-    private fun pickTime() {
-        val cal = Calendar.getInstance().apply { timeInMillis = addOccurredAt }
+    private fun renderAddTime() {
+        binding.tvAddTime.text = timeLabel(addOccurredAt)
+    }
+
+    /** 选日期 + 时间。[current] 是初始值，选定后回调新时间戳 */
+    private fun pickTime(current: Long, onPicked: (Long) -> Unit) {
+        val cal = Calendar.getInstance().apply { timeInMillis = current }
         DatePickerDialog(
             this,
             { _, y, m, d ->
                 TimePickerDialog(
                     this,
                     { _, h, min ->
-                        addOccurredAt = Calendar.getInstance().apply {
-                            set(y, m, d, h, min, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }.timeInMillis
-                        renderAddTime()
+                        onPicked(
+                            Calendar.getInstance().apply {
+                                set(y, m, d, h, min, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+                        )
                     },
                     cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE), true
                 ).show()
@@ -455,9 +477,16 @@ class MainActivity : AppCompatActivity() {
      * 绝不能拿表单覆盖那条既有记录（用户可能早就手动改过它）。
      */
     private fun saveManual() {
-        val amount = addAmount.toString().toDoubleOrNull()
-        if (amount == null || amount <= 0.0) {
-            toast(getString(R.string.add_need_amount))
+        val rawAmount = binding.etAmount.text.toString()
+        val amount = AmountInput.parse(rawAmount)
+        if (amount == null) {
+            // 空＝还没填；填了但不合法＝格式有问题。两种提示分开，别让人对着「请输入金额」反复试
+            toast(
+                getString(
+                    if (rawAmount.isBlank()) R.string.add_need_amount else R.string.amount_invalid
+                )
+            )
+            binding.etAmount.requestFocus()
             return
         }
         val rule = categoryAdapter?.selected() ?: return
@@ -485,20 +514,182 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
                 toast(getString(R.string.add_saved))
+                resetAddForm()
+                switchPage(Page.FLOW)
             }
-            else -> toast(getString(R.string.add_dup_hint))
+            else -> {
+                // 刻意不清空表单：撞指纹多半是金额敲错或多点了一个零，
+                // 让用户改一位再来，比让他从头重录一遍强
+                toast(getString(R.string.add_dup_hint))
+            }
         }
-        resetAddForm()
-        switchPage(Page.FLOW)
     }
 
     private fun resetAddForm() {
-        addAmount.setLength(0)
         addOccurredAt = System.currentTimeMillis()
+        binding.etAmount.setText("")
         binding.etMerchant.setText("")
-        renderAmount()
         renderAddTime()
         setAddDirection(Direction.EXPENSE)
+    }
+
+    // ------------------------------------------------------------ 修改 / 删除一笔
+
+    /**
+     * 改一条**已经入库**的记录。
+     *
+     * 这里刻意不走 `mergeRecord()`：融合的语义是「新来的一笔 vs 库里既有的一笔」，
+     * 而这是用户在纠正已经存在的东西——拿判重规则去决定要不要写入，
+     * 等于允许用户手改的结果被机器否决。所以直接 [TransactionDao.updateRecord]。
+     */
+    private fun showEditSheet(txn: Transaction) {
+        val rules = RuleStore.classifyRules(this).all()
+        var picked: CategoryRule = rules.firstOrNull { it.id == txn.categoryId } ?: rules.first()
+        var direction = txn.direction
+        var occurredAt = txn.occurredAt
+
+        val gridAdapter = CategoryGridAdapter(rules) { picked = it }
+        gridAdapter.select(picked.id)
+        val grid = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(this@MainActivity, 4)
+            adapter = gridAdapter
+            isNestedScrollingEnabled = false
+        }
+
+        val etAmount = editField(getString(R.string.add_amount_hint)).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setText(String.format(Locale.US, "%.2f", txn.amount))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTypeface(null, Typeface.BOLD)
+        }
+        val etMerchant = editField(getString(R.string.add_merchant_hint)).apply {
+            inputType = InputType.TYPE_CLASS_TEXT
+            // 未知商户不显示那个常量桶名，否则用户以为那就是店名
+            val known = txn.merchant.takeIf { it != MerchantNormalizer.UNKNOWN_MERCHANT }.orEmpty()
+            setText(known)
+        }
+        val tvTime = TextView(this).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextColor(getColor(R.color.text_primary))
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        fun renderSheetTime() { tvTime.text = timeLabel(occurredAt) }
+        renderSheetTime()
+        tvTime.setOnClickListener { pickTime(occurredAt) { occurredAt = it; renderSheetTime() } }
+
+        val cbRemember = CheckBox(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f) }
+        fun refreshRememberState() {
+            val name = etMerchant.text.toString().trim()
+            val memorable = name.isNotBlank() && name != MerchantNormalizer.UNKNOWN_MERCHANT
+            cbRemember.isEnabled = memorable
+            cbRemember.isChecked = memorable
+            cbRemember.text =
+                getString(if (memorable) R.string.edit_remember else R.string.edit_remember_unknown)
+        }
+        etMerchant.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) = refreshRememberState()
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+        })
+        refreshRememberState()
+
+        val segBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundResource(R.drawable.bg_seg)
+        }
+        val segExpense = segmentCell(getString(R.string.filter_expense))
+        val segIncome = segmentCell(getString(R.string.filter_income))
+        segBar.addView(segExpense, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        segBar.addView(segIncome, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        fun paintSegment() {
+            segExpense.setBackgroundResource(
+                if (direction == Direction.EXPENSE) R.drawable.bg_seg_on_expense else 0
+            )
+            segIncome.setBackgroundResource(
+                if (direction == Direction.INCOME) R.drawable.bg_seg_on_income else 0
+            )
+            segExpense.setTextColor(
+                getColor(if (direction == Direction.EXPENSE) R.color.surface else R.color.text_secondary)
+            )
+            segIncome.setTextColor(
+                getColor(if (direction == Direction.INCOME) R.color.surface else R.color.text_secondary)
+            )
+        }
+        segExpense.setOnClickListener { direction = Direction.EXPENSE; paintSegment() }
+        segIncome.setOnClickListener { direction = Direction.INCOME; paintSegment() }
+        paintSegment()
+
+        val container = verticalContainer().apply {
+            addView(segBar)
+            addView(fieldLabel(getString(R.string.add_amount_label)))
+            addView(etAmount)
+            addView(fieldLabel(getString(R.string.add_merchant_label)))
+            addView(etMerchant)
+            addView(fieldLabel(getString(R.string.add_time_label)))
+            addView(tvTime)
+            addView(grid)
+            addView(cbRemember)
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.edit_title)
+            .setView(ScrollView(this).apply { addView(container) })
+            .setNegativeButton(R.string.add_cancel, null)
+            // 正向按钮自己接管点击：默认实现无论校验结果如何都会关掉弹窗，
+            // 金额填错就把整个表单吹掉，用户得重新点进来
+            .setPositiveButton(R.string.add_save, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val amount = AmountInput.parse(etAmount.text.toString())
+                if (amount == null) {
+                    toast(getString(R.string.amount_invalid))
+                    etAmount.requestFocus()
+                    return@setOnClickListener
+                }
+                val merchant = etMerchant.text.toString().trim()
+                    .ifBlank { MerchantNormalizer.UNKNOWN_MERCHANT }
+                ServiceLocator.dao.updateRecord(
+                    txn.copy(
+                        amount = amount,
+                        direction = direction,
+                        merchant = merchant,
+                        note = merchant,
+                        categoryId = picked.id,
+                        categoryName = picked.name,
+                        occurredAt = occurredAt,
+                        autoClassified = false
+                    )
+                )
+                if (cbRemember.isChecked && merchant != MerchantNormalizer.UNKNOWN_MERCHANT) {
+                    ServiceLocator.dao.rememberMerchant(merchant, picked.id, picked.name)
+                }
+                dialog.dismiss()
+                toast(getString(R.string.edit_saved))
+                refresh()
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * 删除一笔。
+     *
+     * 必须二次确认：列表行是容易误触的地方，而删除不可逆（本机不留回收站，
+     * 也没有云备份——离线是硬约束的一部分）。
+     */
+    private fun confirmDelete(txn: Transaction) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.delete_title)
+            .setMessage(R.string.delete_body)
+            .setPositiveButton(R.string.row_delete) { _, _ ->
+                ServiceLocator.dao.deleteById(txn.id)
+                flowAdapter.setSelected(null)
+                toast(getString(R.string.delete_done))
+                refresh()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     // ------------------------------------------------------------ 分类修正
@@ -656,11 +847,48 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ 小工具
 
-    private fun verticalContainer() = android.widget.LinearLayout(this).apply {
-        orientation = android.widget.LinearLayout.VERTICAL
-        val pad = (16 * resources.displayMetrics.density).toInt()
+    private fun keyboard(): InputMethodManager =
+        getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+    private fun hideKeyboard() {
+        val token = currentFocus?.windowToken ?: return
+        keyboard().hideSoftInputFromWindow(token, 0)
+    }
+
+    private fun verticalContainer() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        val pad = dp(16)
         setPadding(pad, pad / 2, pad, pad / 2)
     }
+
+    /** 弹窗里的字段标题 */
+    private fun fieldLabel(text: String) = TextView(this).apply {
+        this.text = text
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+        setTextColor(getColor(R.color.text_secondary))
+        setPadding(0, dp(12), 0, dp(4))
+    }
+
+    /** 弹窗里的输入框。用系统键盘：金额 / 商户各自声明 inputType，输入法自己切换盘面 */
+    private fun editField(hint: String) = EditText(this).apply {
+        this.hint = hint
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        setTextColor(getColor(R.color.text_primary))
+        setHintTextColor(getColor(R.color.text_secondary))
+        maxLines = 1
+        setSingleLine(true)
+        background = null
+    }
+
+    /** 收支分段的一格 */
+    private fun segmentCell(text: String) = TextView(this).apply {
+        this.text = text
+        gravity = Gravity.CENTER
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        setPadding(0, dp(8), 0, dp(8))
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun txnCaption(txn: Transaction) = TextView(this).apply {
         text = buildString {

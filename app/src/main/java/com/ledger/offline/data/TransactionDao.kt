@@ -253,6 +253,34 @@ class TransactionDao(private val db: LedgerDb) {
         db.writableDatabase.update("txn", values, "id = ?", arrayOf(id.toString()))
     }
 
+    /**
+     * 用户在界面上直接改一条既有记录（金额 / 方向 / 商户 / 时间 / 分类）。
+     *
+     * 与 [applyBackfill] 的区别必须分清：那是**机器合并**，只补空字段、绝不覆盖既有值；
+     * 这是**用户显式修改**，用户的判断就是最终结果，整行覆盖。
+     *
+     * 为什么 hash 必须跟着重算：amount_hash / merchant_hash 是判重的索引字段
+     * （idx_txn_match 就建在 amount_hash + direction + occurred_at 上）。
+     * 只改密文不改 hash，等于把索引留在旧值上——之后这条记录永远匹配不上任何东西，
+     * 表现为「导了账单却合并不进来，平白多一笔重复」。
+     */
+    fun updateRecord(txn: Transaction) {
+        val values = ContentValues().apply {
+            put("amount_enc", FieldCipher.encrypt(formatAmount(txn.amount)))
+            put("amount_hash", FieldCipher.amountHash(txn.amount))
+            put("direction", txn.direction.code)
+            put("merchant_enc", FieldCipher.encrypt(txn.merchant))
+            put("merchant_hash", FieldCipher.merchantHash(txn.merchant))
+            put("category_id", txn.categoryId)
+            put("category_name", txn.categoryName)
+            put("occurred_at", txn.occurredAt)
+            put("note_enc", FieldCipher.encrypt(txn.note))
+            // 用户亲手定过分类，这一笔就不再算「自动分类」
+            put("auto_classified", 0)
+        }
+        db.writableDatabase.update("txn", values, "id = ?", arrayOf(txn.id.toString()))
+    }
+
     fun deleteById(id: Long) {
         db.writableDatabase.delete("txn", "id = ?", arrayOf(id.toString()))
     }

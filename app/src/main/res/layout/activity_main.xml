@@ -14,103 +14,96 @@
     android:orientation="vertical"
     android:background="@color/bg">
 
-    <!-- ==================== 采集告警（只与流水页有关，进其它页时由代码隐藏） ==================== -->
+    <!-- ==================== 采集告警（一行 + 一个按钮，授权后整条不再出现） ==================== -->
+    <!--
+      刻意只占一行、只留一个按钮：它要传达的是「还差一步」，不是说明书。
+      授权条与服务条都不该长期霸占首屏——首屏要留给流水本身。
+      完整解释（为什么系统页面里找不到微信 / 支付宝、勾了还不生效怎么办）
+      收进采集设置弹窗，点这一行任意位置即可进入。
+    -->
     <LinearLayout
-        android:id="@+id/permissionBanner"
+        android:id="@+id/authBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:background="@color/surface"
-        android:padding="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="7dp"
+        android:paddingBottom="7dp"
         android:visibility="gone">
 
         <TextView
-            android:layout_width="match_parent"
+            android:id="@+id/tvAuthText"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="@string/permission_hint_title"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/permission_hint_body"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/auth_bar_text"
             android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
-
-        <Button
-            android:id="@+id/btnGrant"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/permission_grant" />
-
-        <!-- 系统那个页面只列「申请读通知的应用」，用户找不到微信 / 支付宝是必然的，
-             所以把疑问做成入口，而不是等他回来问 -->
-        <TextView
-            android:id="@+id/tvAuthHelp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:paddingVertical="4dp"
-            android:text="@string/permission_help"
-            android:textColor="@color/brand"
             android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnAuth"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_pill"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text="@string/auth_action"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <!--
-      已授权、但服务没被拉起时的告警。
-      这是最危险的一种状态：界面看起来一切正常，实际一笔都没在记。
-      系统不提供「服务是否活着」的查询，只能靠服务自己留的心跳来判断。
+      已授权、但服务没被拉起时的告警。这是最危险的一种状态：
+      界面看起来一切正常，实际一笔都没在记。系统不提供「服务是否活着」的查询，
+      只能靠服务自己留的心跳来判断。同样压成一行。
     -->
     <LinearLayout
-        android:id="@+id/serviceBanner"
+        android:id="@+id/serviceBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:background="@color/surface"
-        android:padding="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="7dp"
+        android:paddingBottom="7dp"
         android:visibility="gone">
 
         <TextView
-            android:layout_width="match_parent"
+            android:id="@+id/tvServiceText"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="@string/service_hint_title"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/service_bar_text"
+            android:textColor="@color/warn"
+            android:textSize="12sp" />
 
         <TextView
-            android:layout_width="match_parent"
+            android:id="@+id/btnService"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/service_hint_body"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnRestartListener"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/service_restart" />
-
-            <Button
-                android:id="@+id/btnWhitelist"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="@string/service_whitelist" />
-        </LinearLayout>
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_pill"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text="@string/service_action"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <FrameLayout
@@ -430,51 +423,62 @@
             android:background="@color/surface"
             android:visibility="gone">
 
-            <LinearLayout
+            <!--
+              标题栏用 FrameLayout，而不是 LinearLayout + weight：
+              左「取消」与右「保存」宽度不相等，靠 weight 占位会把标题挤偏，
+              之前是靠一个 invisible 的「取消」影子硬凑出来的。overlap 三层，
+              标题自己居中，两个按钮各贴一边，谁改文案都不影响对齐。
+            -->
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:paddingTop="8dp"
                 android:paddingBottom="6dp">
 
                 <TextView
-                    android:id="@+id/tvAddCancel"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingVertical="4dp"
-                    android:paddingHorizontal="6dp"
-                    android:text="@string/add_cancel"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:gravity="center"
                     android:text="@string/add_title"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
-                <!-- 占位：让标题真正居中（左侧「取消」有宽度，右侧必须有个等宽的影子） -->
                 <TextView
+                    android:id="@+id/tvAddCancel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingVertical="4dp"
+                    android:layout_gravity="start|center_vertical"
                     android:paddingHorizontal="6dp"
+                    android:paddingVertical="4dp"
                     android:text="@string/add_cancel"
                     android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:visibility="invisible" />
-            </LinearLayout>
+                    android:textSize="13sp" />
+
+                <!--
+                  保存挪到标题栏右侧：原本它挂在自建数字键盘的右列，
+                  改用系统键盘后没有「键盘区」可挂，放页面底部会被弹出的键盘顶走 / 盖住。
+                -->
+                <TextView
+                    android:id="@+id/tvAddSave"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end|center_vertical"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp"
+                    android:text="@string/add_save"
+                    android:textColor="@color/brand"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
 
             <!--
-              中间段可滚动、键盘固定贴底：分类 + 金额 + 备注在小屏上会顶掉键盘，
-              而键盘是录入的主路径，必须始终在底部。
+              中间段可滚动：分类 + 金额 + 商户 + 时间在小屏上一屏放不下。
+              键盘由系统托管（manifest 里 adjustResize），金额框拿到焦点就出数字键盘，
+              商户框拿到焦点就出中文键盘——两套切换由输入法自己完成，
+              不再自建数字键盘：自建那套在输入中文时不会让位，只能同时挂在屏幕上。
             -->
             <ScrollView
                 android:layout_width="match_parent"
@@ -545,14 +549,50 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
 
-                <TextView
-                    android:id="@+id/tvAmountInput"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="33sp"
-                    android:textStyle="bold" />
+                    android:gravity="bottom"
+                    android:orientation="horizontal">
+
+                    <!--
+                      「¥」不放进 EditText 的文本里：拼进去就成了可编辑内容，
+                      退格会把它删掉，光标定位也会错位。它只是单位，独立放左边。
+                    -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:text="¥"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="24sp" />
+
+                    <!--
+                      金额 → 系统数字键盘（numberDecimal，自带小数点）；
+                      下面的「商户 / 备注」用 text → 系统中文键盘。
+                      两者互斥切换由输入法自己完成：这是自建数字键盘做不到的地方——
+                      自建那套不会在系统键盘弹出时让位，于是两个键盘同时挂在屏幕上。
+                    -->
+                    <EditText
+                        android:id="@+id/etAmount"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:hint="@string/add_amount_hint"
+                        android:imeOptions="actionDone"
+                        android:importantForAutofill="no"
+                        android:inputType="numberDecimal"
+                        android:maxLength="12"
+                        android:maxLines="1"
+                        android:paddingBottom="2dp"
+                        android:singleLine="true"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/divider"
+                        android:textSize="33sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -565,27 +605,25 @@
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp">
 
+                <!-- 商户 / 备注：inputType=text → 系统中文键盘。
+                     这里刻意不自建任何键盘：自建那套不会在系统输入法弹出时让位，
+                     于是录商户时两个键盘会同时挂在屏幕上（2026-09-22 反馈的问题）。 -->
                 <EditText
                     android:id="@+id/etMerchant"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:background="@null"
                     android:hint="@string/add_merchant_hint"
                     android:imeOptions="actionDone"
+                    android:importantForAutofill="no"
                     android:inputType="text"
                     android:maxLines="1"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:singleLine="true"
                     android:textColor="@color/text_primary"
                     android:textColorHint="@color/text_secondary"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="@string/add_merchant_optional"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
+                    android:textSize="14sp" />
             </LinearLayout>
 
             <LinearLayout
@@ -617,49 +655,6 @@
                 </LinearLayout>
             </ScrollView>
 
-            <!-- 自建数字键盘：系统键盘会顶掉分类网格，且输入路径更长。
-                 「保存」固定占右侧整列，录入顺序是 分类 → 金额 → 保存。 -->
-            <GridLayout
-                android:id="@+id/kpad"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@color/divider"
-                android:columnCount="4"
-                android:rowCount="4"
-                android:useDefaultMargins="false">
-
-                <TextView android:id="@+id/key1" style="@style/Key" android:layout_row="0" android:layout_column="0" android:text="1" />
-                <TextView android:id="@+id/key2" style="@style/Key" android:layout_row="0" android:layout_column="1" android:text="2" />
-                <TextView android:id="@+id/key3" style="@style/Key" android:layout_row="0" android:layout_column="2" android:text="3" />
-                <TextView
-                    android:id="@+id/keySave"
-                    style="@style/Key"
-                    android:layout_row="0"
-                    android:layout_column="3"
-                    android:layout_rowSpan="4"
-                    android:layout_gravity="fill"
-                    android:background="@color/brand"
-                    android:text="@string/add_save"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
-
-                <TextView android:id="@+id/key4" style="@style/Key" android:layout_row="1" android:layout_column="0" android:text="4" />
-                <TextView android:id="@+id/key5" style="@style/Key" android:layout_row="1" android:layout_column="1" android:text="5" />
-                <TextView android:id="@+id/key6" style="@style/Key" android:layout_row="1" android:layout_column="2" android:text="6" />
-                <TextView android:id="@+id/key7" style="@style/Key" android:layout_row="2" android:layout_column="0" android:text="7" />
-                <TextView android:id="@+id/key8" style="@style/Key" android:layout_row="2" android:layout_column="1" android:text="8" />
-                <TextView android:id="@+id/key9" style="@style/Key" android:layout_row="2" android:layout_column="2" android:text="9" />
-                <TextView android:id="@+id/keyDot" style="@style/Key" android:layout_row="3" android:layout_column="0" android:text="." />
-                <TextView android:id="@+id/key0" style="@style/Key" android:layout_row="3" android:layout_column="1" android:text="0" />
-                <TextView
-                    android:id="@+id/keyDel"
-                    style="@style/Key"
-                    android:layout_row="3"
-                    android:layout_column="2"
-                    android:text="⌫"
-                    android:textColor="@color/text_secondary"
-                    android:textStyle="normal" />
-            </GridLayout>
         </LinearLayout>
 
         <!-- ==================== 屏 3：统计 ==================== -->
@@ -1002,7 +997,7 @@
                 android:id="@+id/navAddPill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_pill_add"
+                android:background="@drawable/bg_pill"
                 android:paddingStart="15dp"
                 android:paddingEnd="15dp"
                 android:paddingTop="8dp"

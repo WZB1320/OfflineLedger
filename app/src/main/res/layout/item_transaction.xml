@@ -1,56 +1,122 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  流水行。
+  根是 FrameLayout：选中时右侧要「浮现」修改 / 删除，用覆盖层而不是把它们塞进横向
+  LinearLayout——塞进去会让金额被挤走，点一下列表就横向抖动一下。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rowRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:background="@color/surface"
-    android:gravity="center_vertical"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="11dp">
+    android:background="@color/surface">
 
-    <!--
-      分类识别色圆点。颜色来自 classify_rules.json（运行时按 id 取），不在这里写死——
-      UI 层不另存一份分类名单。无商户名的那一类画成虚线空心圆，提示「该补商户名」。
-    -->
+    <!-- 选中标记：一条竖线，比整行换底色更能指出「是这一行」 -->
     <View
-        android:id="@+id/vDot"
-        android:layout_width="9dp"
-        android:layout_height="9dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="10dp" />
+        android:id="@+id/vSelectBar"
+        android:layout_width="3dp"
+        android:layout_height="match_parent"
+        android:background="@color/brand"
+        android:visibility="gone" />
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:id="@+id/rowContent"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="11dp">
+
+        <!--
+          分类识别色圆点。颜色来自 classify_rules.json（运行时按 id 取），不在这里写死——
+          UI 层不另存一份分类名单。无商户名的那一类画成虚线空心圆，提示「该补商户名」。
+        -->
+        <View
+            android:id="@+id/vDot"
+            android:layout_width="9dp"
+            android:layout_height="9dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="10dp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvMerchant"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/tvMeta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/tvMerchant"
-            android:layout_width="match_parent"
+            android:id="@+id/tvAmount"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-
-        <TextView
-            android:id="@+id/tvMeta"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:layout_marginStart="12dp"
+            android:textSize="16sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/tvAmount"
+    <!--
+      选中后浮现的操作区。背景不透明，用来盖住它下面的金额与商户名——
+      半透明会让两层文字叠在一起，谁也读不清。
+    -->
+    <LinearLayout
+        android:id="@+id/rowActions"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:textSize="16sp"
-        android:textStyle="bold" />
-</LinearLayout>
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="@color/surface"
+        android:clickable="true"
+        android:gravity="center_vertical|end"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/btnEdit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_action"
+            android:paddingStart="11dp"
+            android:paddingEnd="11dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:text="@string/row_edit"
+            android:textColor="@color/brand"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnDelete"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="7dp"
+            android:background="@drawable/bg_action"
+            android:paddingStart="11dp"
+            android:paddingEnd="11dp"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:text="@string/row_delete"
+            android:textColor="@color/expense"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</FrameLayout>

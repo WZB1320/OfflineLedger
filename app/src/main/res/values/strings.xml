@@ -6,17 +6,20 @@
     <string name="accessibility_label">离线记账 · 账单页读取</string>
     <string name="accessibility_description">仅在微信、支付宝账单页面读取金额与收款方，用于本地记账。数据不出本机。</string>
 
-    <string name="permission_hint_title">还差一步：开启支付通知监听</string>
-    <string name="permission_hint_body">开启后，微信 / 支付宝的支付到账通知会被自动记成一笔账。\n所有数据仅保存在本机，应用没有网络权限，无法外传。</string>
-    <string name="permission_grant">前往授权</string>
-    <!-- 系统那个页面里列的是「申请读取通知的应用」，不是微信 / 支付宝。
-         用户第一次进去找不到微信 / 支付宝是必然的，所以把疑问直接做成入口。 -->
-    <string name="permission_help">列表里没有微信 / 支付宝？</string>
-    <string name="permission_help_title">要勾选的是「离线记账」，不是微信 / 支付宝</string>
-    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>，所以里面只有「离线记账」。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。</string>
+    <!--
+      授权条刻意只占一行、只留一个按钮。
+      它要传达的是「还差一步」，不是说明书——完整解释（包括为什么系统页面里
+      找不到微信 / 支付宝）收进采集设置弹窗，点整行即可进入。
+    -->
+    <string name="auth_bar_text">开启后，微信 / 支付宝到账通知会自动记成一笔</string>
+    <string name="auth_action">授权</string>
 
-    <string name="service_hint_title">通知监听没有真正生效</string>
-    <string name="service_hint_body">系统里已经授权了通知使用权，但监听服务没有被拉起来，收不到支付通知。\n建议先到系统设置把「离线记账」的通知使用权关掉再打开；再把它加入后台白名单 / 允许自启动，否则系统随时会把它清掉。</string>
+    <string name="service_bar_text">监听已授权，但服务没有运行</string>
+    <string name="service_action">去开启</string>
+    <string name="permission_grant">前往授权</string>
+    <string name="permission_help_title">要勾选的是「离线记账」，不是微信 / 支付宝</string>
+    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>，所以里面只有「离线记账」。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。\n\n已经勾了却依然收不到？通常是系统没有真正拉起监听——回到那个页面<b>关掉再打开</b>一次即可重新绑定。</string>
+
     <string name="service_restart">重新开启监听</string>
     <string name="service_whitelist">加后台白名单</string>
     <string name="whitelist_dialog_title">让它能在后台活下去</string>
@@ -62,14 +65,30 @@
 
     <string name="add_title">记一笔</string>
     <string name="add_cancel">取消</string>
-    <string name="add_amount_label">金额</string>
-    <string name="add_merchant_hint">商户 / 备注</string>
-    <string name="add_merchant_optional">选填</string>
-    <string name="add_time_modify">修改</string>
     <string name="add_save">保存</string>
-    <string name="add_need_amount">请先输入金额</string>
+    <string name="add_amount_label">金额</string>
+    <string name="add_amount_hint">0.00</string>
+    <string name="add_merchant_label">商户 / 备注</string>
+    <string name="add_merchant_hint">例如：楼下面馆</string>
+    <string name="add_time_label">时间</string>
+    <string name="add_time_modify">修改</string>
+    <string name="add_need_amount">请输入金额</string>
+    <string name="amount_invalid">金额只能是数字，最多两位小数</string>
     <string name="add_saved">已记一笔</string>
     <string name="add_dup_hint">与已有记录重复，未重复记账</string>
+
+    <!-- —— 历史记录的编辑 —— -->
+    <string name="row_edit">修改</string>
+    <string name="row_delete">删除</string>
+    <string name="edit_title">修改记录</string>
+    <string name="edit_saved">已更新</string>
+    <string name="delete_title">删除这笔记录？</string>
+    <string name="delete_body">删除后本机即查不到它。若之后再导入同一份账单，这笔会被重新记回来。</string>
+    <string name="delete_done">已删除</string>
+    <!-- 记住商户 → 分类：只在商户名真实时才有意义。给「未识别商户」这个桶写记忆，
+         会让**所有**缺商户名的记录（通知监听的天花板，量很大）被同一条记忆带偏分类 -->
+    <string name="edit_remember">记住该商户，以后自动归到这一类</string>
+    <string name="edit_remember_unknown">商户名未知，写不了记忆</string>
 
     <string name="stat_month_expense">本月支出</string>
     <string name="stat_month_income">本月收入</string>
