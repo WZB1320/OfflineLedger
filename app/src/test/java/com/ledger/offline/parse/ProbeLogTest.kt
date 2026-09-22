@@ -67,6 +67,29 @@ class ProbeLogTest {
     }
 
     @Test
+    fun `同文案但间隔超过重发窗口的是两笔交易`() {
+        // 2026-09-22 真机踩坑：连付两笔 1 元，通知原文一字不差。
+        // 无限期按文案去重会让第二笔从诊断列表消失，排查被带偏。
+        var list = emptyList<ProbeEntry>()
+        list = ProbeLog.push(list, entry(at = 100L))
+        // 恰好在窗口边界外一毫秒
+        list = ProbeLog.push(list, entry(at = 100L + ProbeLog.RESEND_WINDOW_MS + 1))
+        assertEquals(2, list.size)
+        assertEquals(100L, list[0].at)
+        assertEquals(100L + ProbeLog.RESEND_WINDOW_MS + 1, list[1].at)
+    }
+
+    @Test
+    fun `窗口内的重发仍然只留一条`() {
+        var list = emptyList<ProbeEntry>()
+        list = ProbeLog.push(list, entry(at = 100L))
+        list = ProbeLog.push(list, entry(at = 100L + ProbeLog.RESEND_WINDOW_MS - 1))
+        assertEquals(1, list.size)
+        // 留下的是时间戳更新的那次
+        assertEquals(100L + ProbeLog.RESEND_WINDOW_MS - 1, list[0].at)
+    }
+
+    @Test
     fun `超过上限保留最新的`() {
         var list = emptyList<ProbeEntry>()
         for (i in 1..30) {

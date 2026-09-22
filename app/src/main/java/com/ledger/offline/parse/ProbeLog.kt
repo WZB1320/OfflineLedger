@@ -26,6 +26,15 @@ object ProbeLog {
     /** 环形缓冲上限。够看清最近的几次支付，又不至于长期囤积明文 */
     const val LIMIT = 20
 
+    /**
+     * 「同一通知重发」的判定窗口：同标题同正文、且到达间隔在这个窗口内，
+     * 才算同一条通知的反复推送（微信刷时间、支付宝更新进度，都发生在几秒内）。
+     * 间隔超过窗口的同文案通知是**另一笔同金额的交易**——连付两笔 1 元时
+     * 通知原文一字不差，按文案无限期去重会让诊断列表只剩一条，
+     * 「第二笔没被记录」的假象会把排查带偏（2026-09-22 真机实测踩中）。
+     */
+    const val RESEND_WINDOW_MS = 60_000L
+
     private const val SEP = '\u0001'
     private const val NULL = ""
 
@@ -58,10 +67,12 @@ object ProbeLog {
 
     /** 追加一条并截断到 [limit]，保留最新的（末尾是最新） */
     fun push(list: List<ProbeEntry>, entry: ProbeEntry, limit: Int = LIMIT): List<ProbeEntry> {
-        // 同一条通知会被反复重发（微信刷时间、支付宝更新进度），
-        // 记多份同样的原文只会把缓冲挤满。先去重再加，顺序不能反——
-        // 先加再去重的话，data class 的结构相等会把刚加的那条也一起删掉。
-        val out = ArrayList(list.filterNot { it.title == entry.title && it.text == entry.text })
+        // 先去重再加，顺序不能反——先加再去重的话，data class 的结构相等
+        // 会把刚加的那条也一起删掉。去重受 [RESEND_WINDOW_MS] 约束（见其文档）。
+        val out = ArrayList(list.filterNot {
+            it.title == entry.title && it.text == entry.text &&
+                entry.at - it.at < RESEND_WINDOW_MS
+        })
         out.add(entry)
         return if (out.size > limit) out.takeLast(limit) else out
     }
