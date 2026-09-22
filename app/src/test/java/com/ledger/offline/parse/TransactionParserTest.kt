@@ -82,6 +82,32 @@ class TransactionParserTest {
         assertEquals("星巴克", parsed.merchantRaw)
     }
 
+    /**
+     * 真实样本（2026-09-22 用户截图的系统通知原文）：
+     *   标题 = 交易提醒
+     *   正文 = 你有一笔1.00元的支出，点击领取2个支付宝积分。使用花呗支付，请及时还款。
+     *
+     * 这是支付宝交易通知的实际形态：金额「N.NN元」、方向词「支出」，
+     * 现行规则应当放行；商户名没有 → 标「未识别商户」，之后由账单导入回填。
+     * 2026-09-22 那笔电费没入账的根因不在规则层（本用例钉住这一点），
+     * 在通道层（服务是否收到通知）。改 amountPattern / 关键词时不得打破它。
+     */
+    @Test
+    fun `真实支付宝交易提醒通知应放行（2026-09-22 真实样本）`() {
+        val outcome = TransactionParser.parse(
+            alipay,
+            title = "交易提醒",
+            text = "你有一笔1.00元的支出，点击领取2个支付宝积分。使用花呗支付，请及时还款。",
+            postedAt = 0L
+        )
+        assertNull(outcome.drop)
+        val parsed = outcome.txn
+        assertNotNull(parsed)
+        assertEquals(1.0, parsed!!.amount, 0.001)
+        assertEquals(Direction.EXPENSE, parsed.direction)
+        assertEquals("", parsed.merchantRaw)
+    }
+
     @Test
     fun `退款应判为收入而不是支出`() {
         val parsed = TransactionParser.parse(alipay, "支付宝", "退款成功，25.00元已到账", 0L).txn
