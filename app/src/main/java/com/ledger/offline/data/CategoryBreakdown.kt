@@ -72,7 +72,9 @@ object CategoryBreakdown {
 
         for (t in expense) {
             if (t.categoryId == fallback.id) {
-                if (FlowList.isUnclassified(t, unknownMerchant)) {
+                // 已经处在 categoryId == fallback.id 的分支里，这里的 merchant 判据
+                // 与 FlowList.isUnclassified 是同一个拆分口径，别再写第二份
+                if (FlowList.isUnclassified(t, unknownMerchant, fallback.id)) {
                     fallbackUnknown += t.amount
                     fallbackUnknownCount++
                 } else {

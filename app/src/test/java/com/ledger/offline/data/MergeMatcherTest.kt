@@ -187,6 +187,72 @@ class MergeMatcherTest {
         assertEquals(MergeMatcher.Level.NEW, decision.level)
     }
 
+    // ------------------------------------------- 手动记账的融合（2026-09-22 新增）
+    // 手动记录的商户名是用户敲的简称（"水电费"），官方账单里是全称（"国网上海市电力公司"）。
+    // 两边**都有**商户名 ⇒ 门一不开、L3 对不上 ⇒ 同一笔在账本里留两条。
+
+    private fun manual(
+        amount: Double = 25.0,
+        merchant: String = "水电费",
+        at: Long = base,
+        categoryId: String = "food",
+        autoClassified: Boolean = false
+    ) = MergeMatcher.Candidate(
+        id = 3L, amount = amount, direction = Direction.EXPENSE, merchant = merchant,
+        occurredAt = at, categoryId = categoryId, categoryName = "餐饮",
+        autoClassified = autoClassified, sourceId = "manual_entry"
+    )
+
+    @Test
+    fun `手动补录与官方账单是同一笔 —— 商户名不同也要合并`() {
+        // 库里是账单（官方全称 + 单号），用户又手动记了一遍（自己敲的简称）
+        val existingBill = incoming(merchant = "国网上海市电力公司", txnNo = "ALI001")
+        val decision = MergeMatcher.decide(manual(), listOf(existingBill))
+
+        assertEquals(MergeMatcher.Level.LOOSE, decision.level)
+        assertEquals("国网上海市电力公司", decision.target?.merchant)
+    }
+
+    @Test
+    fun `手动先落库、账单后到 —— 同一笔不会被记第二遍`() {
+        val existingManual = manual()
+        val fromBill = incoming(merchant = "国网上海市电力公司", txnNo = "ALI001")
+        val decision = MergeMatcher.decide(fromBill, listOf(existingManual))
+
+        assertEquals(MergeMatcher.Level.LOOSE, decision.level)
+        // 手动那条没有单号 → 补上；分类是用户定的，机器不许动
+        val plan = MergeMatcher.backfillPlan(
+            decision.target!!, fromBill, categoryFromOfficialSeed = true
+        )
+        assertNotNull(plan)
+        assertEquals("ALI001", plan!!.txnNo)
+        assertNull(plan.categoryId)
+    }
+
+    @Test
+    fun `两条手动记录同金额不同商户不合并 —— 连着补录的两笔必须都留下`() {
+        val first = manual(merchant = "楼下面馆").copy(id = 1L)
+        val second = manual(merchant = "隔壁小卖部").copy(id = 2L)
+        assertEquals(MergeMatcher.Level.NEW, MergeMatcher.decide(second, listOf(first)).level)
+    }
+
+    @Test
+    fun `手动与通知仍是同一笔 —— 走原来那扇门，商户名补进通知那条`() {
+        val notice = notification(merchant = unknown).copy(id = 1L)
+        val decision = MergeMatcher.decide(manual(), listOf(notice))
+        assertEquals(MergeMatcher.Level.LOOSE, decision.level)
+
+        val plan = MergeMatcher.backfillPlan(decision.target!!, manual(), false)
+        assertEquals("水电费", plan?.merchant)
+    }
+
+    @Test
+    fun `手动与账单超出三分钟窗口仍不合并`() {
+        val existingBill = incoming(merchant = "国网上海市电力公司", txnNo = "ALI001")
+        val farManual = manual(at = base - 4 * 60 * 1000L)
+        assertEquals(MergeMatcher.Level.NEW, MergeMatcher.decide(farManual, listOf(existingBill)).level)
+    }
+
     // ------------------------------------------------------------ L3
 
     @Test

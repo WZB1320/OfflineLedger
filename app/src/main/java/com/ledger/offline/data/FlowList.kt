@@ -26,21 +26,36 @@ object FlowList {
     }
 
     /**
-     * 「未分类」= 没有商户名。
+     * 「未分类」= 没有商户名 **且** 分类仍落在兜底。
+     *
+     * 后半句不能省（2026-09-22）：手动记账允许不填商户名、只选分类。
+     * 只按商户名判的话，用户刚在「记一笔」里选了「餐饮」的那笔会被标成未分类、
+     * 画成空心圆点、还被计进「未分类 N」——界面在说"这笔没分类"，
+     * 而用户明明亲手分了。判定「分没分出来」只能看分类本身。
      *
      * 注意它与 `category_id = other` 是包含关系而不是并列：没有商户名 ⇒ 关键词必然不命中
      * ⇒ 分类同样落到 fallback。UI 上拆开显示只是为了提示「该补商户名」，
      * 统计口径必须合并算（见 [CategoryBreakdown]）。
      */
-    fun isUnclassified(txn: Transaction, unknownMerchant: String): Boolean =
-        txn.merchant.isBlank() || txn.merchant == unknownMerchant
+    fun isUnclassified(
+        txn: Transaction,
+        unknownMerchant: String,
+        fallbackCategoryId: String
+    ): Boolean =
+        (txn.merchant.isBlank() || txn.merchant == unknownMerchant) &&
+            txn.categoryId == fallbackCategoryId
 
-    fun filter(txns: List<Transaction>, f: Filter, unknownMerchant: String): List<Transaction> =
+    fun filter(
+        txns: List<Transaction>,
+        f: Filter,
+        unknownMerchant: String,
+        fallbackCategoryId: String
+    ): List<Transaction> =
         when (f) {
             Filter.ALL -> txns
             Filter.EXPENSE -> txns.filter { it.direction == Direction.EXPENSE }
             Filter.INCOME -> txns.filter { it.direction == Direction.INCOME }
-            Filter.UNCLASSIFIED -> txns.filter { isUnclassified(it, unknownMerchant) }
+            Filter.UNCLASSIFIED -> txns.filter { isUnclassified(it, unknownMerchant, fallbackCategoryId) }
         }
 
     /**

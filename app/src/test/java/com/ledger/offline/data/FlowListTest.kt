@@ -11,6 +11,7 @@ import java.util.Locale
 class FlowListTest {
 
     private val unknown = "未识别商户"
+    private val fallback = "other"
 
     private fun at(y: Int, m: Int, d: Int, h: Int, min: Int): Long =
         Calendar.getInstance(Locale.CHINA).apply {
@@ -24,12 +25,14 @@ class FlowListTest {
         direction: Direction = Direction.EXPENSE,
         merchant: String = "星巴克",
         day: Int = 21,
-        hour: Int = 9
+        hour: Int = 9,
+        categoryId: String = fallback
     ) = Transaction(
         id = id,
         amount = amount,
         direction = direction,
         merchant = merchant,
+        categoryId = categoryId,
         occurredAt = at(2026, Calendar.SEPTEMBER, day, hour, 0)
     )
 
@@ -39,9 +42,9 @@ class FlowListTest {
             txn(1, 10.0, Direction.EXPENSE),
             txn(2, 20.0, Direction.INCOME)
         )
-        assertEquals(2, FlowList.filter(list, FlowList.Filter.ALL, unknown).size)
-        assertEquals(1, FlowList.filter(list, FlowList.Filter.EXPENSE, unknown).size)
-        assertEquals(1, FlowList.filter(list, FlowList.Filter.INCOME, unknown).size)
+        assertEquals(2, FlowList.filter(list, FlowList.Filter.ALL, unknown, fallback).size)
+        assertEquals(1, FlowList.filter(list, FlowList.Filter.EXPENSE, unknown, fallback).size)
+        assertEquals(1, FlowList.filter(list, FlowList.Filter.INCOME, unknown, fallback).size)
     }
 
     @Test
@@ -51,7 +54,27 @@ class FlowListTest {
             txn(2, 10.0, merchant = unknown),
             txn(3, 10.0, merchant = "全家")
         )
-        assertEquals(2, FlowList.filter(list, FlowList.Filter.UNCLASSIFIED, unknown).size)
+        assertEquals(2, FlowList.filter(list, FlowList.Filter.UNCLASSIFIED, unknown, fallback).size)
+    }
+
+    @Test
+    fun `手动记账选了分类但没填商户名 —— 不算未分类`() {
+        // 用户在「记一笔」里只填了金额、选了「餐饮」，商户名留空。
+        // 只按商户名判的话这笔会被标成未分类：界面在说"这笔没分类"，
+        // 而用户明明亲手分了。判「分没分出来」只能看分类本身。
+        val manual = txn(1, 32.0, merchant = unknown, categoryId = "food")
+        assertEquals(false, FlowList.isUnclassified(manual, unknown, fallback))
+        assertEquals(
+            0,
+            FlowList.filter(listOf(manual), FlowList.Filter.UNCLASSIFIED, unknown, fallback).size
+        )
+    }
+
+    @Test
+    fun `没商户名且分类仍是兜底 —— 才算未分类`() {
+        assertEquals(true, FlowList.isUnclassified(txn(1, 32.0, merchant = unknown), unknown, fallback))
+        // 有商户名却落在兜底 → 那是「其他（有商户·未命中）」，与「未分类」不是一回事
+        assertEquals(false, FlowList.isUnclassified(txn(2, 32.0, merchant = "某某商贸"), unknown, fallback))
     }
 
     @Test

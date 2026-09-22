@@ -15,12 +15,17 @@ class TransactionDao(private val db: LedgerDb) {
     enum class MergeOutcome { ADDED, BACKFILLED, DUPLICATE }
 
     /**
-     * 融合结论 + 新增记录的 rowId。
+     * 融合结论 + 「这次动到的那一行」的 id。
      *
-     * insertedId 只在 ADDED 时非空：手动记账「先融合落库、再按用户选的分类修正」需要拿到
-     * 刚插入那条的 id；BACKFILLED / DUPLICATE 时融合目标是既有记录，不该再被手动表单覆盖。
+     * - ADDED：[rowId] 是刚插入那条的 id
+     * - BACKFILLED：[rowId] 是被补的那条**既有记录**的 id
+     * - DUPLICATE：null（完全没动）
+     *
+     * BACKFILLED 也要带出 id：手动记账「先融合、再按用户选的分类修正」需要它。
+     * 少了它，用户手记一笔并进通知记录时，他选的分类会被静默丢掉——
+     * 界面上表现为「我明明选了餐饮，它还写着其他」。
      */
-    data class MergeResult(val outcome: MergeOutcome, val insertedId: Long?) {
+    data class MergeResult(val outcome: MergeOutcome, val rowId: Long?) {
         companion object {
             fun duplicate() = MergeResult(MergeOutcome.DUPLICATE, null)
         }
@@ -68,7 +73,7 @@ class TransactionDao(private val db: LedgerDb) {
         val plan = MergeMatcher.backfillPlan(target, incoming, categoryFromOfficialSeed, fallbackCategoryId)
             ?: return MergeResult.duplicate()
         return if (applyBackfill(target.id, plan)) {
-            MergeResult(MergeOutcome.BACKFILLED, null)
+            MergeResult(MergeOutcome.BACKFILLED, target.id)
         } else MergeResult.duplicate()
     }
 

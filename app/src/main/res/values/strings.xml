@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">离线记账</string>
+    <string name="app_name">我的账单</string>
 
-    <string name="notification_listener_label">离线记账 · 支付通知监听</string>
-    <string name="accessibility_label">离线记账 · 账单页读取</string>
+    <string name="notification_listener_label">我的账单 · 支付通知监听</string>
+    <string name="accessibility_label">我的账单 · 账单页读取</string>
     <string name="accessibility_description">仅在微信、支付宝账单页面读取金额与收款方，用于本地记账。数据不出本机。</string>
 
     <!--
@@ -17,8 +17,8 @@
     <string name="service_bar_text">监听已授权，但服务没有运行</string>
     <string name="service_action">去开启</string>
     <string name="permission_grant">前往授权</string>
-    <string name="permission_help_title">要勾选的是「离线记账」，不是微信 / 支付宝</string>
-    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>——里面可能有不少 App，<b>要找并勾选的是「离线记账」</b>，不是微信 / 支付宝。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。\n\n已经勾了却依然显示未授权？通常是系统没有真正保存或拉起——回到那个页面<b>关掉再打开</b>一次即可重新绑定。</string>
+    <string name="permission_help_title">要勾选的是「我的账单」，不是微信 / 支付宝</string>
+    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>——里面可能有不少 App，<b>要找并勾选的是「我的账单」</b>，不是微信 / 支付宝。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。\n\n已经勾了却依然显示未授权？通常是系统没有真正保存或拉起——回到那个页面<b>关掉再打开</b>一次即可重新绑定。</string>
     <string name="auth_still_failing">已勾选，仍无效</string>
 
     <string name="service_restart">重新开启监听</string>
@@ -90,6 +90,8 @@
     <string name="add_need_amount">请输入金额</string>
     <string name="amount_invalid">金额只能是数字，最多两位小数</string>
     <string name="add_saved">已记一笔</string>
+    <!-- 手动记账撞上库里已有的一笔：不是"没记进去"，是并进去了，得说清楚 -->
+    <string name="add_merged">与已有的一笔是同一笔，已并入</string>
     <string name="add_dup_hint">与已有记录重复，未重复记账</string>
 
     <!-- —— 历史记录的编辑 —— -->

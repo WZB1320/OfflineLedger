@@ -70,6 +70,9 @@ class MainActivity : AppCompatActivity() {
     private var monthOffset = 0
     private var filter = FlowList.Filter.ALL
 
+    /** 刚落库那一笔的 id。切回流水页时要滚到它并选中，见 [revealPendingRow] */
+    private var pendingRowId: Long? = null
+
     // —— 记一笔的临时状态 ——
     private var addDirection = Direction.EXPENSE
     private var addOccurredAt = System.currentTimeMillis()
@@ -331,12 +334,14 @@ class MainActivity : AppCompatActivity() {
         val balance = stats.income - stats.expense
         binding.tvBalance.text = (if (balance >= 0) "+" else "-") + "¥" + money(kotlin.math.abs(balance))
 
-        val uncat = all.count { FlowList.isUnclassified(it, MerchantNormalizer.UNKNOWN_MERCHANT) }
+        val uncat = all.count {
+            FlowList.isUnclassified(it, MerchantNormalizer.UNKNOWN_MERCHANT, rules.fallback.id)
+        }
         binding.chipUncat.text = getString(R.string.filter_uncat, uncat)
         renderChips()
 
-        val shown = FlowList.filter(all, filter, MerchantNormalizer.UNKNOWN_MERCHANT)
-        flowAdapter.submit(FlowList.group(shown)) { rules.colorHex(it) }
+        val shown = FlowList.filter(all, filter, MerchantNormalizer.UNKNOWN_MERCHANT, rules.fallback.id)
+        flowAdapter.submit(FlowList.group(shown), { rules.colorHex(it) }, rules.fallback.id)
 
         // 选中的那一行可能已经不在窗口里了：改了时间翻到别的月、删掉、或切了筛选。
         // 不清的话会出现「有一行高亮着，但屏幕上找不到它」的状态。
@@ -347,6 +352,29 @@ class MainActivity : AppCompatActivity() {
 
         binding.tvEmpty.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
         binding.recycler.visibility = if (shown.isEmpty()) View.GONE else View.VISIBLE
+
+        revealPendingRow(shown)
+    }
+
+    /**
+     * 把刚记下的那一笔摆到用户眼前：滚动到它所在的行并选中。
+     *
+     * 为什么必须做：列表按时间倒序，而「记一笔」的时间默认是**现在**——
+     * 用户若把时间改成上个月，或当前筛选是「支出」而他记的是收入，
+     * 保存后切回流水页会「什么都没发生」，那笔其实已经进库了，只是不在视野里。
+     * 用户只能靠再翻一遍月份来确认自己到底记进去没有。
+     *
+     * 选中它（而不只是滚到那儿）是刻意的：既指出「是这一条」，
+     * 也顺手把修改 / 删除递到手边——刚记的数最容易按错一位。
+     */
+    private fun revealPendingRow(shown: List<Transaction>) {
+        val id = pendingRowId ?: return
+        pendingRowId = null
+        if (shown.none { it.id == id }) return
+        val pos = flowAdapter.positionOf(id)
+        if (pos < 0) return
+        binding.recycler.scrollToPosition(pos)
+        flowAdapter.setSelected(id)
     }
 
     private fun renderChips() {
@@ -478,9 +506,15 @@ class MainActivity : AppCompatActivity() {
      * 手动记账落库。
      *
      * 写入必须走 `mergeRecord()`，不能绕过融合直接 insert：否则「白天手记一笔、
-     * 月底导账单又来一笔」会在账本里留下两条。融合结论决定后续动作——
-     * 只有真的新增（ADDED）才按表单里的分类去修正；合并到既有记录时
-     * 绝不能拿表单覆盖那条既有记录（用户可能早就手动改过它）。
+     * 月底导账单又来一笔」会在账本里留下两条。
+     *
+     * 三种融合结论的处理：
+     * - ADDED：真的新增 → 把表单里的分类写到这一笔
+     * - BACKFILLED：并进了既有记录（多半是通知抓到的、缺商户名那批）→
+     *   **同样要应用表单里的分类**。用户在「记一笔」里亲手选了「餐饮」，
+     *   这条信息不能因为合并就丢了，否则界面上仍是兜底分类，
+     *   表现为「我明明选了，它怎么没变」。
+     * - DUPLICATE：库里那条已经很完整，没什么可补 → 不动它，也不清表单。
      */
     private fun saveManual() {
         val rawAmount = binding.etAmount.text.toString()
@@ -509,8 +543,8 @@ class MainActivity : AppCompatActivity() {
             note = merchant
         )
         when (result.outcome) {
-            TransactionDao.MergeOutcome.ADDED -> {
-                val id = result.insertedId
+            TransactionDao.MergeOutcome.ADDED, TransactionDao.MergeOutcome.BACKFILLED -> {
+                val id = result.rowId
                 if (id != null) {
                     ServiceLocator.correctCategory(
                         id,
@@ -519,7 +553,24 @@ class MainActivity : AppCompatActivity() {
                         rule.name
                     )
                 }
-                toast(getString(R.string.add_saved))
+                // 让这一笔一定出现在视野里：时间可能不是当月，筛选也可能把它挡在外面。
+                // 三件事一起做，否则「记完了却看不见」和「没记进去」在界面上没法区分。
+                pendingRowId = id
+                monthOffset = MonthWindow
+                    .offsetOf(System.currentTimeMillis(), addOccurredAt)
+                    .coerceIn(MIN_MONTH_OFFSET, 0)
+                filter = FlowList.Filter.ALL
+
+                // 并进既有记录时不写「已记一笔」：用户没看到新行，会以为记丢了
+                toast(
+                    getString(
+                        if (result.outcome == TransactionDao.MergeOutcome.ADDED) {
+                            R.string.add_saved
+                        } else {
+                            R.string.add_merged
+                        }
+                    )
+                )
                 resetAddForm()
                 switchPage(Page.FLOW)
             }
@@ -702,7 +753,8 @@ class MainActivity : AppCompatActivity() {
 
     /** 长按改分类 → 写入修正记忆，下次同商户自动命中 */
     private fun showCategorySheet(txn: Transaction) {
-        val rules = RuleStore.classifyRules(this).all()
+        val classifies = RuleStore.classifyRules(this)
+        val rules = classifies.all()
         var picked: CategoryRule = rules.firstOrNull { it.id == txn.categoryId } ?: rules.first()
         val adapter = CategoryGridAdapter(rules) { picked = it }
         adapter.select(picked.id)
@@ -715,7 +767,10 @@ class MainActivity : AppCompatActivity() {
 
         val container = verticalContainer().apply {
             addView(txnCaption(txn))
-            if (FlowList.isUnclassified(txn, MerchantNormalizer.UNKNOWN_MERCHANT)) {
+            if (FlowList.isUnclassified(
+                    txn, MerchantNormalizer.UNKNOWN_MERCHANT, classifies.fallback.id
+                )
+            ) {
                 addView(noteView(getString(R.string.fix_unknown_note)))
             }
             addView(grid)
@@ -784,7 +839,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * 「列表里没有微信 / 支付宝？」
      *
-     * 系统的通知使用权页面列出的是**申请读取通知的应用**，里面只会有「离线记账」。
+     * 系统的通知使用权页面列出的是**申请读取通知的应用**，里面只会有「我的账单」。
      * 挑微信 / 支付宝是代码里的包名白名单（parser_rules.json 的 packageNames），
      * 不是用户在系统里勾的。用户第一次进去必然找不到，所以把解释做成入口。
      */

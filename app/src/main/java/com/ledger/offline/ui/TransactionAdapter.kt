@@ -40,13 +40,17 @@ class TransactionAdapter(
     /** 分类 id → 识别色。由外部注入（来自 classify_rules.json），本类不内置分类名单 */
     private var colorOf: (String) -> String = { "#8A8A82" }
 
+    /** 兜底分类 id。判定「这笔算不算未分类」要用到，由外部注入（来自 classify_rules.json） */
+    private var fallbackCategoryId: String = "other"
+
     private var selectedId: Long? = null
 
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.CHINA)
 
-    fun submit(entries: List<FlowList.Entry>, colorOf: (String) -> String) {
+    fun submit(entries: List<FlowList.Entry>, colorOf: (String) -> String, fallbackCategoryId: String) {
         this.entries = entries
         this.colorOf = colorOf
+        this.fallbackCategoryId = fallbackCategoryId
         notifyDataSetChanged()
     }
 
@@ -58,8 +62,8 @@ class TransactionAdapter(
      */
     fun setSelected(id: Long?) {
         if (selectedId == id) return
-        val old = indexOfRow(selectedId)
-        val new = indexOfRow(id)
+        val old = positionOf(selectedId)
+        val new = positionOf(id)
         selectedId = id
         if (old >= 0) notifyItemChanged(old)
         if (new >= 0) notifyItemChanged(new)
@@ -68,7 +72,7 @@ class TransactionAdapter(
     fun selectedId(): Long? = selectedId
 
     /** @return 该 id 的行在 entries 中的位置；不在列表里返回 -1 */
-    private fun indexOfRow(id: Long?): Int {
+    fun positionOf(id: Long?): Int {
         id ?: return -1
         return entries.indexOfFirst { it is FlowList.Entry.Row && it.txn.id == id }
     }
@@ -110,7 +114,11 @@ class TransactionAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(txn: Transaction) = with(binding) {
-            val unknown = FlowList.isUnclassified(txn, MerchantNormalizer.UNKNOWN_MERCHANT)
+            val manual = txn.sourceId.startsWith(MANUAL_PREFIX)
+            tvTag.visibility = if (manual) View.VISIBLE else View.GONE
+
+            val unknown =
+                FlowList.isUnclassified(txn, MerchantNormalizer.UNKNOWN_MERCHANT, fallbackCategoryId)
             tvMerchant.text = if (unknown) MerchantNormalizer.UNKNOWN_MERCHANT else txn.merchant
             tvMerchant.setTextColor(
                 root.context.getColor(if (unknown) R.color.warn else R.color.text_primary)
@@ -138,18 +146,19 @@ class TransactionAdapter(
             // 这个前缀是 MergeMatcher 判重的硬判据（决定宽松指纹那扇门给谁开），
             // 标签只是它的另一种读法。抄一份字面量就等于造出第四处定义，
             // 下次加新来源时必然再漂一次（2026-09-17 的 "csv" 就是这么留下来的死分支）。
+            // 手动那笔的来源由 tvTag 单独标记，meta 里不再重复一遍「手动」
             val sourceLabel = when {
+                manual -> ""
                 txn.sourceId.startsWith(MergeMatcher.BILL_SOURCE_PREFIX) ->
                     root.context.getString(R.string.source_bill)
                 txn.sourceId == SOURCE_WECHAT -> root.context.getString(R.string.source_wechat)
                 txn.sourceId == SOURCE_ALIPAY -> root.context.getString(R.string.source_alipay)
-                txn.sourceId.startsWith(MANUAL_PREFIX) -> root.context.getString(R.string.source_manual)
                 else -> root.context.getString(R.string.source_other)
             }
             tvMeta.text = buildString {
                 append(timeFormat.format(Date(txn.occurredAt)))
                 append(" · ").append(txn.categoryName)
-                append(" · ").append(sourceLabel)
+                if (sourceLabel.isNotEmpty()) append(" · ").append(sourceLabel)
                 if (unknown) append(" · ").append(root.context.getString(R.string.meta_fix_hint))
             }
 
@@ -189,8 +198,14 @@ class TransactionAdapter(
         private const val TYPE_HEAD = 0
         private const val TYPE_ROW = 1
 
-        /** 手动记账的来源前缀。判重语义：非 `bill_` 前缀 ⇒ 按「不完整来源」处理 */
-        const val MANUAL_PREFIX = "manual_"
+        /**
+         * 手动记账的来源前缀。判重语义：非 `bill_` 前缀 ⇒ 按「不完整来源」处理。
+         *
+         * 直接引用 [MergeMatcher.MANUAL_SOURCE_PREFIX]：这个前缀同时是 L2 宽松指纹
+         * 的开闸判据，抄一份字面量就等于造出第二处定义——改了判重不改标签，
+         * 行上的「手动」标记就会指向一批判重行为完全不同的记录。
+         */
+        const val MANUAL_PREFIX = MergeMatcher.MANUAL_SOURCE_PREFIX
 
         private const val SOURCE_WECHAT = "wechat"
         private const val SOURCE_ALIPAY = "alipay"

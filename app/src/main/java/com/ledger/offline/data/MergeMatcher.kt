@@ -16,7 +16,8 @@ import kotlin.math.abs
  *
  * ## 四级匹配（从严到宽，命中即停）
  * - L1 单号精确：有官方交易单号，最强证据（账单里几乎都有）
- * - L2 宽松指纹：金额 + 方向 + ±3min，**只要「缺商户名的那一方」是通知来源就开这扇门**
+ * - L2 宽松指纹：金额 + 方向 + ±3min，两扇门取并集：
+ *   「缺商户名的那一方是通知来源」或「一边手动、一边自动（见 [MANUAL_SOURCE_PREFIX]）」
  * - L3 完整指纹：金额 + 方向 + 商户名 + ±3min（通知里带了商户名时走这条）
  * - L4 新增
  *
@@ -46,6 +47,15 @@ object MergeMatcher {
     /** 官方账单来源的前缀；通知 / 无障碍来源不带这个前缀 */
     const val BILL_SOURCE_PREFIX = "bill_"
 
+    /**
+     * 手动记账的来源前缀。
+     *
+     * 它也是判重语义的一部分：手动记录是「用户凭记忆补的」，
+     * 商户名是他自己敲的简称（"水电费"），与官方账单里的全称（"国网上海市电力公司"）
+     * 字面永远对不上——所以 L2 必须为「一边手动、一边自动」再开一扇门，见 [looseHit]。
+     */
+    const val MANUAL_SOURCE_PREFIX = "manual_"
+
     /** 金额比较容差：两边都是从字符串解析出来的 Double，不能用 == */
     private const val AMOUNT_EPSILON = 0.005
 
@@ -71,6 +81,10 @@ object MergeMatcher {
         /** 是否来自通知 / 无障碍这类「实时但不完整」的来源 */
         val fromNotification: Boolean
             get() = !sourceId.startsWith(BILL_SOURCE_PREFIX)
+
+        /** 是否用户手动补录的。商户名是自由文本，与官方账单对不上是常态 */
+        val fromManual: Boolean
+            get() = sourceId.startsWith(MANUAL_SOURCE_PREFIX)
     }
 
     data class Decision(val level: Level, val target: Candidate? = null)
@@ -152,22 +166,43 @@ object MergeMatcher {
 
     /** L2：宽到可以救回「通知没带商户名」那批，但不能宽到把两笔不同交易并成一笔 */
     private fun looseHit(c: Candidate, incoming: Candidate): Boolean =
-        unknownSideIsFromNotification(c, incoming) &&
+        looseGate(c, incoming) &&
             sameAmount(c, incoming) && c.direction == incoming.direction &&
             inWindow(c, incoming) && orderNumbersCompatible(c, incoming)
 
     /**
-     * L2 的开闸条件：**至少有一方是通知来源，且这一方没有商户名**。
+     * L2 的开闸条件，两扇门取并集。
      *
+     * 门一（[unknownSideIsFromNotification]）：**至少有一方是通知来源，且这一方没有商户名**。
      * 刻意写成对称形式，而不是只看 [c]（既有记录）——
      * 两个方向都会发生，且都必然导致重复记账：
      *   - 通知先落库（缺商户名），账单后到 → 缺商户名的是 c
      *   - 账单先入库（有商户名），通知后到 → 缺商户名的是 incoming
      * 后一种在「先补录历史账单、再在日常收通知」的用法下是常态。
+     *
+     * 门二（[manualMeetsAuto]）：一边手动、一边自动。
      */
+    private fun looseGate(c: Candidate, incoming: Candidate): Boolean =
+        unknownSideIsFromNotification(c, incoming) || manualMeetsAuto(c, incoming)
+
     private fun unknownSideIsFromNotification(c: Candidate, incoming: Candidate): Boolean =
         (c.merchantUnknown && c.fromNotification) ||
             (incoming.merchantUnknown && incoming.fromNotification)
+
+    /**
+     * 一边手动、一边自动 ⇒ 放宽到不看商户名。
+     *
+     * 为什么必须开：手动记账的商户名是用户敲的简称（"水电费""楼下超市"），
+     * 官方账单里是全称（"国网上海市电力公司"）。两边**都有**商户名，
+     * 于是门一不开（没有"缺商户名的那一方"）、L3 也不中（名字对不上），
+     * 结果同一笔在账本里留下两条——用户手动记过，月底导账单又来一遍。
+     *
+     * 为什么只放宽到「一边手动一边自动」而不是「谁都行」：
+     * 用户连续手动补录两笔同金额（分两次扫码付的、两杯咖啡）**必须是两笔**，
+     * 所以「两边都是手动」不给开。同理账单 vs 账单、账单 vs 通知仍按原判据走。
+     */
+    private fun manualMeetsAuto(c: Candidate, incoming: Candidate): Boolean =
+        c.fromManual != incoming.fromManual
 
     /** L3：商户名也对得上，属于强证据 */
     private fun fullHit(c: Candidate, incoming: Candidate): Boolean =

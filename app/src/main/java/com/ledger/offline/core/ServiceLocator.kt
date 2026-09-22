@@ -134,7 +134,8 @@ object ServiceLocator {
     }
 
     /**
-     * 上面那条的 id 版：手动记账刚落库时手里只有 rowId（[TransactionDao.MergeResult.insertedId]）。
+     * 上面那条的 id 版：手动记账刚落库时手里只有 id（[TransactionDao.MergeResult.rowId]）——
+     * 新增时是新的 rowId，并进既有记录时是被补那条的 id，两种情况都要把用户选的分类写上去。
      *
      * 修正记忆只在 merchant 是真实商户名时写：给「未识别商户」这个常量桶写记忆，
      * 会让**所有**无商户名的记录（通知监听的天花板，量很大）被同一条记忆带偏分类。
