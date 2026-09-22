@@ -146,11 +146,13 @@ class MainActivity : AppCompatActivity() {
         binding.statBars.layoutManager = LinearLayoutManager(this)
         binding.statBars.adapter = statAdapter
 
-        // 授权条：按钮直接跳授权页，左侧文案是解释入口（为什么不占一行标题 + 一段正文：
-        // 它是「还差一步」的提醒，不是说明书，且授权后整条要消失）
-        binding.btnAuth.setOnClickListener { openListenerSettings() }
+        // 授权条：按钮**不**直接跳系统页，先弹说明。
+        // 那个页面列的是「申请读通知的应用」，用户进去必然找不到微信 / 支付宝，
+        // 于是不知所措地勾了别的条目就退出来——App 这边永远显示未授权。
+        // 解释如果只挂在左侧那行小字上，等于没有：用户看到按钮就点。
+        binding.btnAuth.setOnClickListener { showAuthHelp() }
         binding.tvAuthText.setOnClickListener { showAuthHelp() }
-        binding.btnService.setOnClickListener { openListenerSettings() }
+        binding.btnService.setOnClickListener { showAuthHelp() }
         // 状态条本身就是入口：点它能看到「到底哪一环没在跑」
         binding.statusBar.setOnClickListener { showCaptureSettings() }
 
@@ -791,6 +793,9 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.permission_help_title)
             .setMessage(Html.fromHtml(permissionHelpHtml(), Html.FROM_HTML_MODE_LEGACY))
             .setPositiveButton(R.string.permission_grant) { _, _ -> openListenerSettings() }
+            // 「勾了却没用」是这里的常态，必须给一条不用回话就能自查的路：
+            // 进采集设置能看到系统到底记录了谁，比再来一轮"你确定勾了吗"有用
+            .setNeutralButton(R.string.auth_still_failing) { _, _ -> showCaptureSettings() }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -815,6 +820,17 @@ class MainActivity : AppCompatActivity() {
     private fun showCaptureSettings() {
         val status = captureSnapshot()
         val container = verticalContainer()
+
+        // 系统授权记录的原文。「明明勾了却显示未授权」的唯一仲裁者：
+        // 这里空着＝系统里确实没有授权记录，去勾；有内容但没有本 App＝勾的是别的应用。
+        // 两种情况的界面表现完全一样，不摆出原文就只能靠猜。
+        val raw = enabledListenersRaw()
+        container.addView(TextView(this).apply {
+            text = "系统授权记录：${raw.ifBlank { "（空）" }}\n本应用包名：$packageName"
+            setTextColor(getColor(if (status.granted) R.color.text_secondary else R.color.warn))
+            textSize = 11f
+            setPadding(0, 0, 0, dp(8))
+        })
 
         container.addView(TextView(this).apply {
             text = buildString {
@@ -963,6 +979,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun isListenerEnabled(): Boolean =
         NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+
+    /**
+     * 系统里 `enabled_notification_listeners` 的原文。
+     *
+     * 只读 Settings.Secure 而不直接用 [NotificationManagerCompat.getEnabledListenerPackages]：
+     * 后者已经把 ComponentName 拆成了包名，正好抹掉了判断"勾的是谁"所需的信息——
+     * 而用户在系统页里勾错条目，恰恰是「明明授权了却显示未授权」最常见的原因。
+     */
+    private fun enabledListenersRaw(): String = runCatching {
+        Settings.Secure.getString(contentResolver, "enabled_notification_listeners").orEmpty()
+    }.getOrDefault("(读取失败)")
 
     // ------------------------------------------------------------ 小工具
 

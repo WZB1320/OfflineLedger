@@ -18,14 +18,16 @@
     <string name="service_action">去开启</string>
     <string name="permission_grant">前往授权</string>
     <string name="permission_help_title">要勾选的是「离线记账」，不是微信 / 支付宝</string>
-    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>，所以里面只有「离线记账」。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。\n\n已经勾了却依然收不到？通常是系统没有真正拉起监听——回到那个页面<b>关掉再打开</b>一次即可重新绑定。</string>
+    <string name="permission_help_body">系统「通知使用权」页面列出的是<b>申请读取通知的应用</b>——里面可能有不少 App，<b>要找并勾选的是「离线记账」</b>，不是微信 / 支付宝。\n勾选它＝授权本应用读取通知；之后再按包名只挑微信 / 支付宝的支付通知来处理，其余通知一律丢弃（这是代码里的白名单，不是你在系统里选的）。\n\n微信 / 支付宝那边只要别关掉「支付到账通知」即可：微信在「我-设置-消息通知」，支付宝在「设置-通用-新消息通知」。\n\n已经勾了却依然显示未授权？通常是系统没有真正保存或拉起——回到那个页面<b>关掉再打开</b>一次即可重新绑定。</string>
+    <string name="auth_still_failing">已勾选，仍无效</string>
 
     <string name="service_restart">重新开启监听</string>
     <string name="service_whitelist">加后台白名单</string>
     <string name="whitelist_dialog_title">让它能在后台活下去</string>
     <string name="whitelist_dialog_body">国产 ROM 默认会限制后台服务，通知监听被清掉后不会自动恢复。\n请在打开的页面里：允许自启动 / 允许后台运行、把电池策略设为「无限制」。\n找不到入口时会跳到应用详情页，从「电池 / 权限」里同样能设置。</string>
 
-    <string name="status_listen_off">监听：未开启</string>
+    <!-- 不是「没打开」，是系统里没有授权记录。写成「未开启」会被理解成 App 里有个开关没打开 -->
+    <string name="status_listen_off">监听：未授权</string>
     <string name="status_listen_stalled">监听：已授权，但服务未运行</string>
     <string name="status_listen_on">监听：运行中</string>
     <string name="status_event_never">尚未监听到支付通知</string>
