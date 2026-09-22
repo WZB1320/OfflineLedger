@@ -3,7 +3,9 @@ package com.ledger.offline.capture
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.util.Log
 import com.ledger.offline.core.ServiceLocator
+import com.ledger.offline.parse.ProbeLog
 import com.ledger.offline.parse.RuleStore
 import com.ledger.offline.parse.TransactionParser
 
@@ -37,6 +39,7 @@ class NotificationCaptureService : NotificationListenerService() {
         // 留下「服务确实起来了」的心跳。系统不提供「监听是否活着」的查询，
         // 界面只能靠这个心跳区分「已授权且在跑」与「已授权但服务死了」。
         runCatching { CaptureStatus.markConnected(this) }
+        Log.i(TAG, "listener connected")
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -63,25 +66,56 @@ class NotificationCaptureService : NotificationListenerService() {
             }
         }.trim()
 
-        if (title.isNullOrBlank() && text.isBlank()) return
+        val occurredAt = if (notification.postTime > 0) notification.postTime else System.currentTimeMillis()
 
         // 微信会为了刷新时间反复重发同一条通知，这里做一次轻量短路，
-        // 避免每条重发都走一遍正则。
+        // 避免每条重发都走一遍正则，也避免诊断缓冲被同一条通知刷满
+        // （ProbeLog.push 本身也去重，但短路能省掉前面的字符串拼接与正则）。
         val signature = "$pkg|$title|$text"
         val now = System.currentTimeMillis()
         if (signature == lastSignature && now - lastSignatureAt < 10_000L) return
         lastSignature = signature
         lastSignatureAt = now
 
-        val occurredAt = if (notification.postTime > 0) notification.postTime else now
-        val parsed = TransactionParser.parse(rule, title, text, occurredAt) ?: return
+        val outcome = TransactionParser.parse(rule, title, text, occurredAt)
+        val parsed = outcome.txn
 
-        runCatching { ServiceLocator.persist(parsed, "$title $text") }
+        // 日志刻意不记金额与商户名：logcat 不是本应用私有的东西，
+        // 而排查「有没有收到通知」只需要知道包名、来源与判定结果就够了。
+        Log.i(TAG, "notification pkg=$pkg src=${rule.id} " +
+            (parsed?.let { "accepted dir=${it.direction}" } ?: "dropped reason=${outcome.drop}"))
+
+        val mergeResult = parsed?.let { runCatching { ServiceLocator.persist(it, "$title $text") }.getOrNull() }
+
+        runCatching {
+            CaptureProbe.record(
+                this,
+                ProbeLog.ProbeEntry(
+                    at = occurredAt,
+                    pkg = pkg,
+                    sourceId = rule.id,
+                    title = title.orEmpty(),
+                    text = text,
+                    outcome = mergeResult?.outcome?.name,
+                    drop = outcome.drop
+                )
+            )
+        }
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        Log.w(TAG, "listener disconnected, requesting rebind")
         // 系统可能会在内存吃紧时断开监听，尝试请求重连
         runCatching { requestRebind(android.content.ComponentName(this, NotificationCaptureService::class.java)) }
+    }
+
+    private companion object {
+        /**
+         * 统一的日志 tag。之所以要留日志：诊断缓冲只在用户手动开启时才有，
+         * 而「服务被 ROM 杀掉」这类问题发生时，界面上什么都看不到，
+         * 只有 adb logcat 能给出证据。
+         */
+        const val TAG = "LedgerCapture"
     }
 }

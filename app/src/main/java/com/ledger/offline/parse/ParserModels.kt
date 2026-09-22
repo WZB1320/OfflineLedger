@@ -132,3 +132,18 @@ data class ParsedTransaction(
     val occurredAt: Long,
     val sourceId: String
 )
+
+/**
+ * 解析的完整结果：成功时带 [txn]，失败时带 [drop] 说明死在哪一关。
+ *
+ * 之所以不继续返回 null：丢弃是这条链路的**常态**（营销推送、缺金额、
+ * 判不出方向都会丢），而返回 null 会把「为什么丢」这个信息直接抹掉。
+ * 用户报「有通知但没记账」时，没有它就只能靠猜——是根本没收到，
+ * 还是收到了但被第 3 关的金额正则拦下？这两件事的修法完全不同。
+ */
+data class ParseOutcome(
+    val txn: ParsedTransaction?,
+    val drop: DropReason?
+) {
+    val accepted: Boolean get() = txn != null
+}

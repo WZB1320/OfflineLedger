@@ -34,6 +34,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.ledger.offline.BuildConfig
 import com.ledger.offline.R
 import com.ledger.offline.capture.BillImporter
+import com.ledger.offline.capture.CaptureProbe
 import com.ledger.offline.capture.CaptureStatus
 import com.ledger.offline.classify.MerchantNormalizer
 import com.ledger.offline.core.ServiceLocator
@@ -48,7 +49,10 @@ import com.ledger.offline.data.model.Transaction
 import com.ledger.offline.databinding.ActivityMainBinding
 import com.ledger.offline.parse.CategoryRule
 import com.ledger.offline.parse.RuleStore
+import com.ledger.offline.parse.ProbeLog
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -810,26 +814,141 @@ class MainActivity : AppCompatActivity() {
     /** 点状态条弹出：把两个通道的真实状态摆清楚，再给对应的跳转入口 */
     private fun showCaptureSettings() {
         val status = captureSnapshot()
-        val message = buildString {
-            append(if (status.granted) "通知使用权：已开启\n" else "通知使用权：未开启\n")
-            append(
-                if (status.everConnected) "监听服务：已连上系统通知总线\n"
-                else "监听服务：从未连上（授权后需要系统重新绑定一次）\n"
-            )
-            when (val d = status.daysSinceEvent()) {
-                -1L -> append("最近监听到支付通知：无记录\n")
-                else -> append("最近监听到支付通知：$d 天前\n")
+        val container = verticalContainer()
+
+        container.addView(TextView(this).apply {
+            text = buildString {
+                append(if (status.granted) "通知使用权：已开启\n" else "通知使用权：未开启\n")
+                append(
+                    if (status.everConnected) "监听服务：已连上系统通知总线\n"
+                    else "监听服务：从未连上（授权后需要系统重新绑定一次）\n"
+                )
+                when (val d = status.daysSinceEvent()) {
+                    -1L -> append("最近监听到支付通知：无记录\n")
+                    else -> append("最近监听到支付通知：$d 天前\n")
+                }
+                when (val d = status.daysSinceImport()) {
+                    -1L -> append("最近导入账单：从未导入")
+                    else -> append("最近导入账单：$d 天前")
+                }
             }
-            when (val d = status.daysSinceImport()) {
-                -1L -> append("最近导入账单：从未导入")
-                else -> append("最近导入账单：$d 天前")
-            }
+            setTextColor(getColor(R.color.text_secondary))
+            textSize = 13f
+        })
+
+        // 诊断开关：默认关。存的是通知原文（含金额 / 商户名），
+        // 与「字段级加密」的基线相悖，只能由用户自己决定是否临时开启。
+        val toggle = CheckBox(this).apply {
+            text = getString(R.string.probe_toggle)
+            isChecked = CaptureProbe.isEnabled(this@MainActivity)
+            setTextColor(getColor(R.color.text_primary))
+            textSize = 13f
+            setPadding(0, dp(10), 0, dp(4))
         }
-        AlertDialog.Builder(this)
+        container.addView(toggle)
+
+        container.addView(TextView(this).apply {
+            text = getString(R.string.probe_toggle_note, ProbeLog.LIMIT)
+            setTextColor(getColor(R.color.text_secondary))
+            textSize = 11f
+        })
+
+        val entries = CaptureProbe.recent(this)
+        val viewLink = TextView(this).apply {
+            text = if (CaptureProbe.isEnabled(this@MainActivity)) {
+                getString(R.string.probe_view, entries.size)
+            } else {
+                getString(R.string.probe_view_off)
+            }
+            setTextColor(getColor(R.color.brand))
+            textSize = 13f
+            setPadding(0, dp(12), 0, dp(4))
+        }
+        container.addView(viewLink)
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.capture_settings)
-            .setMessage(message)
+            .setView(container)
             .setPositiveButton(R.string.service_restart) { _, _ -> openListenerSettings() }
             .setNeutralButton(R.string.service_whitelist) { _, _ -> showWhitelistGuide() }
+            .setNegativeButton("关闭", null)
+            .show()
+
+        toggle.setOnCheckedChangeListener { _, on ->
+            CaptureProbe.setEnabled(this, on)
+            dialog.dismiss()
+            showCaptureSettings()          // 重开一次，让「最近通知」入口跟着更新
+        }
+        viewLink.setOnClickListener {
+            if (CaptureProbe.isEnabled(this)) showProbeList()
+        }
+    }
+
+    /**
+     * 最近通知的原文与判定结果。
+     *
+     * 这是「有通知却没记账」的分诊台：列表里出现过这条通知 → 通道是活的，
+     * 问题在规则；列表里根本没有 → 服务压根没收到，要去处理 ROM 的后台限制。
+     * 两种情况界面上都表现为「什么都没发生」，只能靠这里分开。
+     */
+    private fun showProbeList() {
+        val entries = CaptureProbe.recent(this).asReversed()   // 最新的排在最上面
+        val container = verticalContainer()
+
+        if (entries.isEmpty()) {
+            container.addView(TextView(this).apply {
+                text = getString(R.string.probe_empty)
+                setTextColor(getColor(R.color.text_secondary))
+                textSize = 13f
+            })
+        } else {
+            val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
+            for (e in entries) {
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    lp.bottomMargin = dp(8)
+                    layoutParams = lp
+                }
+                card.addView(TextView(this).apply {
+                    text = "${fmt.format(Date(e.at))}  ${e.sourceId}"
+                    setTextColor(getColor(R.color.text_secondary))
+                    textSize = 11f
+                })
+                card.addView(TextView(this).apply {
+                    text = "「${e.title}」${e.text.ifBlank { getString(R.string.probe_no_text) }}"
+                    setTextColor(getColor(R.color.text_primary))
+                    textSize = 13f
+                    setPadding(0, dp(4), 0, 0)
+                })
+                card.addView(TextView(this).apply {
+                    text = e.outcome?.let { getString(R.string.probe_accepted, it) }
+                        ?: getString(R.string.probe_dropped, e.drop?.label.orEmpty())
+                    // 已入账用主色，被丢弃用告警色——一眼扫得出哪条没进去
+                    setTextColor(getColor(if (e.accepted) R.color.brand else R.color.warn))
+                    textSize = 12f
+                    setPadding(0, dp(4), 0, 0)
+                })
+                container.addView(card)
+            }
+        }
+
+        val scroll = ScrollView(this).apply {
+            addView(container)
+            setPadding(0, dp(8), 0, dp(8))
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.probe_title)
+            .setView(scroll)
+            .setPositiveButton(R.string.probe_clear) { _, _ ->
+                CaptureProbe.clear(this)
+                toast("已清空")
+            }
             .setNegativeButton("关闭", null)
             .show()
     }

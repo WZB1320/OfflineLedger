@@ -45,7 +45,7 @@ class TransactionParserTest {
             title = "微信支付",
             text = "向星巴克(浦东世纪汇店)付款成功 ¥25.00",
             postedAt = 1_700_000_000_000L
-        )
+        ).txn
         assertNotNull(parsed)
         assertEquals(25.0, parsed!!.amount, 0.001)
         assertEquals(Direction.EXPENSE, parsed.direction)
@@ -57,14 +57,14 @@ class TransactionParserTest {
         // 真实情况里微信经常只推一条「已支付¥25.00」，不带商户。
         // 这时 merchantRaw 必须为空，交给上层标成「未识别商户」，
         // 而不是把「微信支付」当成商户名写进账本。
-        val parsed = TransactionParser.parse(wechat, "微信支付", "已支付¥25.00", 0L)
+        val parsed = TransactionParser.parse(wechat, "微信支付", "已支付¥25.00", 0L).txn
         assertNotNull(parsed)
         assertEquals("", parsed!!.merchantRaw)
     }
 
     @Test
     fun `营销推送应被黑名单拦下`() {
-        val parsed = TransactionParser.parse(wechat, "微信支付", "恭喜获得红包 ¥8.88", 0L)
+        val parsed = TransactionParser.parse(wechat, "微信支付", "恭喜获得红包 ¥8.88", 0L).txn
         assertNull(parsed)
     }
 
@@ -75,7 +75,7 @@ class TransactionParserTest {
             title = "支付宝",
             text = "你在星巴克消费25.00元，付款成功",
             postedAt = 0L
-        )
+        ).txn
         assertNotNull(parsed)
         assertEquals(25.0, parsed!!.amount, 0.001)
         assertEquals(Direction.EXPENSE, parsed.direction)
@@ -84,7 +84,7 @@ class TransactionParserTest {
 
     @Test
     fun `退款应判为收入而不是支出`() {
-        val parsed = TransactionParser.parse(alipay, "支付宝", "退款成功，25.00元已到账", 0L)
+        val parsed = TransactionParser.parse(alipay, "支付宝", "退款成功，25.00元已到账", 0L).txn
         assertNotNull(parsed)
         assertEquals(Direction.INCOME, parsed!!.direction)
     }
@@ -92,16 +92,45 @@ class TransactionParserTest {
     @Test
     fun `判断不了收支方向时宁缺毋滥`() {
         // 文案里有金额，但既没有支出关键词也没有收入关键词 —— 丢弃
-        val parsed = TransactionParser.parse(alipay, "支付宝", "您有一笔25.00元的待处理事项", 0L)
+        val parsed = TransactionParser.parse(alipay, "支付宝", "您有一笔25.00元的待处理事项", 0L).txn
         assertNull(parsed)
     }
 
     @Test
     fun `金额带千分位也能解析`() {
-        val parsed = TransactionParser.parse(wechat, "微信支付", "已支付¥1,299.00", 0L)
+        val parsed = TransactionParser.parse(wechat, "微信支付", "已支付¥1,299.00", 0L).txn
         assertNotNull(parsed)
         assertEquals(1299.0, parsed!!.amount, 0.001)
     }
+
+    // ------------------------------------------------------------ 丢弃原因
+
+    @Test
+    fun `丢弃时要说清死在哪一关`() {
+        assertEquals(DropReason.IGNORED, drop(wechat, "微信支付", "恭喜获得红包 ¥8.88"))
+        assertEquals(DropReason.NO_AMOUNT, drop(wechat, "微信支付", "支付成功，请查收"))
+        assertEquals(DropReason.AMOUNT_TOO_SMALL, drop(wechat, "微信支付", "已支付¥0.00"))
+        assertEquals(DropReason.NO_DIRECTION, drop(alipay, "支付宝", "您有一笔25.00元的待处理事项"))
+        assertEquals(DropReason.EMPTY, drop(alipay, "", ""))
+    }
+
+    /**
+     * 已知缺口：生活缴费（水 / 电 / 燃气）目前会被丢在方向这一关。
+     *
+     * 把缺口写成可执行断言，而不是只写在注释里——
+     * 等拿到真实样本把「缴费 / 缴纳」补进关键词表后，这条会失败，
+     * 逼着来更新它；否则规则改了、测试却还绿着，等于没记录。
+     */
+    @Test
+    fun `生活缴费文案当前会被丢弃（已知缺口，待真实样本校准）`() {
+        assertEquals(DropReason.NO_DIRECTION, drop(alipay, "生活缴费", "您已成功缴纳电费128.50元"))
+        assertEquals(DropReason.NO_DIRECTION, drop(alipay, "支付宝", "缴费成功，电费 128.50 元"))
+        // 金额写成 ¥ 时，连方向那一关都走不到——amountPattern 只认「数字+元」
+        assertEquals(DropReason.NO_AMOUNT, drop(alipay, "支付宝", "燃气费缴费成功 ¥128.50"))
+    }
+
+    private fun drop(rule: SourceRule, title: String, text: String): DropReason? =
+        TransactionParser.parse(rule, title, text, 0L).drop
 
     private fun source(
         id: String,

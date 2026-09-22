@@ -49,7 +49,7 @@ class ScreenReadService : AccessibilityService() {
         lastPackage = pkg
         lastHandledAt = now
 
-        val parsed = TransactionParser.parse(rule, e.className?.toString(), page, now) ?: return
+        val parsed = TransactionParser.parse(rule, e.className?.toString(), page, now).txn ?: return
         runCatching { ServiceLocator.persist(parsed, page) }
     }
 

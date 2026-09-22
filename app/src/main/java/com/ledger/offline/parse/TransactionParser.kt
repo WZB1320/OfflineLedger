@@ -15,35 +15,39 @@ object TransactionParser {
     /** 商户名上限，防止正则贪婪匹配吃进一整段文案 */
     private const val MAX_MERCHANT_LEN = 40
 
-    fun parse(rule: SourceRule, title: String?, text: String?, postedAt: Long): ParsedTransaction? {
+    fun parse(rule: SourceRule, title: String?, text: String?, postedAt: Long): ParseOutcome {
         val t = title?.trim().orEmpty()
         val c = text?.trim().orEmpty()
         val body = "$t $c".trim()
-        if (body.isEmpty()) return null
+        if (body.isEmpty()) return ParseOutcome(null, DropReason.EMPTY)
 
         // 1. 黑名单：营销推送、红包、收益播报之类，直接扔掉
-        if (rule.ignoreIfContains.any { body.contains(it) }) return null
+        if (rule.ignoreIfContains.any { body.contains(it) }) return ParseOutcome(null, DropReason.IGNORED)
 
         // 2. 金额
         val amount = rule.amountRegex.find(body)
             ?.groupValues?.getOrNull(1)
             ?.replace(",", "")
             ?.toDoubleOrNull()
-            ?: return null
-        if (amount < rule.minAmount) return null
+            ?: return ParseOutcome(null, DropReason.NO_AMOUNT)
+        if (amount < rule.minAmount) return ParseOutcome(null, DropReason.AMOUNT_TOO_SMALL)
 
         // 3. 收支方向。两个方向的关键词都不命中就不敢下判断，丢弃。
-        val direction = detectDirection(rule, body) ?: return null
+        val direction = detectDirection(rule, body)
+            ?: return ParseOutcome(null, DropReason.NO_DIRECTION)
 
         // 4. 收款方
         val merchant = extractMerchant(rule, t, c)
 
-        return ParsedTransaction(
-            amount = amount,
-            direction = direction,
-            merchantRaw = merchant,
-            occurredAt = postedAt,
-            sourceId = rule.id
+        return ParseOutcome(
+            ParsedTransaction(
+                amount = amount,
+                direction = direction,
+                merchantRaw = merchant,
+                occurredAt = postedAt,
+                sourceId = rule.id
+            ),
+            null
         )
     }
 

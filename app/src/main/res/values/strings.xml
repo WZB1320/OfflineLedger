@@ -36,6 +36,19 @@
 
     <string name="capture_settings">采集设置</string>
 
+    <!-- 通知诊断：排查「有通知却没记账」的唯一手段 -->
+    <string name="probe_toggle">记录通知诊断（明文，仅存本机）</string>
+    <string name="probe_toggle_note">开启后，最近 %1$d 条微信 / 支付宝通知的原文会明文存在本机，用于排查「有通知却没记账」。排查完请关掉，关掉即清空。</string>
+    <string name="probe_view">查看最近通知（%1$d）</string>
+    <string name="probe_view_off">查看最近通知（未开启）</string>
+    <string name="probe_title">最近通知</string>
+    <string name="probe_empty">还没有记录。开启后缴一次费，再回这里看它卡在哪一关。</string>
+    <string name="probe_accepted">已入账 · %1$s</string>
+    <string name="probe_dropped">未入账 · %1$s</string>
+    <string name="probe_no_text">（这条通知没有正文）</string>
+    <string name="probe_clear">清空记录</string>
+    <string name="probe_disabled">诊断已关闭，无记录。</string>
+
     <!-- 来源标签：读的是 sourceId，值本身由 parser_rules.json 的 sources[].id 决定 -->
     <string name="source_bill">账单</string>
     <string name="source_wechat">微信</string>
