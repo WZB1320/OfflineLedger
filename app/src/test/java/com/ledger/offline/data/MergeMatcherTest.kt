@@ -253,6 +253,54 @@ class MergeMatcherTest {
         assertEquals(MergeMatcher.Level.NEW, MergeMatcher.decide(farManual, listOf(existingBill)).level)
     }
 
+    // ---------------------------------- 用户改过商户名的融合（2026-09-23 新增）
+    // 真机实测踩中的「第三态」：通知落库时商户是「未识别商户」→ 用户长按改成
+    // 自己的简称（"国网"）→ 月底账单带官方全称进来。门一不开（两边都有名字）、
+    // L3 不中（简称≠全称）、门二不开（sourceId 还是通知源）→ 同一笔留两条。
+
+    @Test
+    fun `用户改过商户名的通知与账单是同一笔——简称与官方全称也要合并`() {
+        val edited = notification(merchant = "国网", autoClassified = false)
+        val fromBill = incoming(merchant = "国网汇通金财（北京）信息科技", txnNo = "ALI001")
+        val decision = MergeMatcher.decide(fromBill, listOf(edited))
+
+        assertEquals(MergeMatcher.Level.LOOSE, decision.level)
+    }
+
+    @Test
+    fun `门三命中时保留用户简称与分类、只补单号——永不覆盖用户修正`() {
+        val edited = notification(merchant = "国网", autoClassified = false)
+        val fromBill = incoming(merchant = "国网汇通金财（北京）信息科技", txnNo = "ALI001")
+        val decision = MergeMatcher.decide(fromBill, listOf(edited))
+
+        val plan = MergeMatcher.backfillPlan(
+            decision.target!!, fromBill, categoryFromOfficialSeed = true
+        )
+        assertNotNull(plan)
+        assertEquals("ALI001", plan!!.txnNo)   // 单号：只补空
+        assertNull(plan.merchant)             // 商户：「国网」是用户改的，绝不覆盖
+        assertNull(plan.categoryId)            // 分类：用户定过（auto=false）就不动
+    }
+
+    @Test
+    fun `门三不放宽到通知——用户改过的记录与另一条不同商户的通知不合并`() {
+        // 只对「用户改过 vs 官方账单」开。若对任意来源开，
+        // 用户改过商户名的那条会和另一笔同金额、不同商户的实时通知仅凭金额时间误并
+        val edited = notification(merchant = "国网", autoClassified = false)
+        val anotherNotice = notification(merchant = "肯德基", at = base)
+        assertEquals(MergeMatcher.Level.NEW, MergeMatcher.decide(anotherNotice, listOf(edited)).level)
+    }
+
+    @Test
+    fun `没被用户改过的记录不进门三——带商户名的通知与账单商户不同仍各记各的`() {
+        // 门三的钥匙是 autoClassified=false（只有用户操作会置 0）；
+        // 自动落库的记录（修正记忆/关键词/种子全是 auto=true）不许走这扇门，
+        // 否则两笔同金额不同商户的交易会被并成一笔
+        val untouched = notification(merchant = "星巴克")
+        val fromBill = incoming(merchant = "瑞幸咖啡", txnNo = "ALI002")
+        assertEquals(MergeMatcher.Level.NEW, MergeMatcher.decide(fromBill, listOf(untouched)).level)
+    }
+
     // ------------------------------------------------------------ L3
 
     @Test

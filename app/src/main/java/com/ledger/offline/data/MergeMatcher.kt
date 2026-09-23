@@ -82,9 +82,25 @@ object MergeMatcher {
         val fromNotification: Boolean
             get() = !sourceId.startsWith(BILL_SOURCE_PREFIX)
 
+        /** 是否来自官方账单导入（xlsx / csv，sourceId 带 bill_ 前缀） */
+        val fromBill: Boolean
+            get() = sourceId.startsWith(BILL_SOURCE_PREFIX)
+
         /** 是否用户手动补录的。商户名是自由文本，与官方账单对不上是常态 */
         val fromManual: Boolean
             get() = sourceId.startsWith(MANUAL_SOURCE_PREFIX)
+
+        /**
+         * 是否被用户在界面上改过（编辑弹窗 / 分类修正）。
+         *
+         * 锚点是 autoClassified=false：落库链路（[com.ledger.offline.classify.Classifier]）
+         * 里修正记忆 / 关键词 / 官方种子 / 兜底**全部** auto=true，
+         * 只有用户亲手操作（[TransactionDao.updateRecord] / [TransactionDao.updateCategory]）
+         * 才会置 0——它是「用户碰过这条记录」的唯一可靠信号。
+         * 手动记账天然是用户作品，由 [fromManual] 单独表达，这里刻意排除。
+         */
+        val userEdited: Boolean
+            get() = !autoClassified && !fromManual
     }
 
     data class Decision(val level: Level, val target: Candidate? = null)
@@ -171,7 +187,7 @@ object MergeMatcher {
             inWindow(c, incoming) && orderNumbersCompatible(c, incoming)
 
     /**
-     * L2 的开闸条件，两扇门取并集。
+     * L2 的开闸条件，三扇门取并集。
      *
      * 门一（[unknownSideIsFromNotification]）：**至少有一方是通知来源，且这一方没有商户名**。
      * 刻意写成对称形式，而不是只看 [c]（既有记录）——
@@ -181,9 +197,13 @@ object MergeMatcher {
      * 后一种在「先补录历史账单、再在日常收通知」的用法下是常态。
      *
      * 门二（[manualMeetsAuto]）：一边手动、一边自动。
+     *
+     * 门三（[userEditedMeetsBill]）：一边是**用户改过的记录**、一边是官方账单。
      */
     private fun looseGate(c: Candidate, incoming: Candidate): Boolean =
-        unknownSideIsFromNotification(c, incoming) || manualMeetsAuto(c, incoming)
+        unknownSideIsFromNotification(c, incoming) ||
+            manualMeetsAuto(c, incoming) ||
+            userEditedMeetsBill(c, incoming)
 
     private fun unknownSideIsFromNotification(c: Candidate, incoming: Candidate): Boolean =
         (c.merchantUnknown && c.fromNotification) ||
@@ -203,6 +223,27 @@ object MergeMatcher {
      */
     private fun manualMeetsAuto(c: Candidate, incoming: Candidate): Boolean =
         c.fromManual != incoming.fromManual
+
+    /**
+     * 门三：一边是**用户改过的记录**、一边是官方账单。
+     *
+     * 为什么必须开（2026-09-23 真机实测踩中）：通知先落库时商户是「未识别商户」，
+     * 用户长按把商户改成自己的简称（"国网"），月底账单带着官方全称
+     * （"国网汇通金财（北京）信息科技…"）进来——门一不开（两边商户都有名字）、
+     * L3 不中（简称≠全称）、门二也不开（sourceId 还是通知源，不是 manual_），
+     * 同一笔在账本里留下两条。与门二同一信任模型：用户敲的名字天然与官方全称对不上，
+     * 只能信金额 + 方向 + 时间窗 + 单号守卫。
+     *
+     * 为什么另一边必须是官方账单（[Candidate.fromBill]）：账单才有「同一笔」的
+     * 强证据（单号守卫兜底）。**绝不**放宽到「用户改过的记录 vs 任意记录」——
+     * 否则用户改过商户名的那条，会和另一笔同金额、不同商户的实时通知
+     * 仅凭金额时间被误并。
+     *
+     * 合并后回填纪律不变：用户的简称保留（merchant 非空不补）、
+     * 用户的分类保留（autoClassified=false 不动）、只补交易单号。
+     */
+    private fun userEditedMeetsBill(c: Candidate, incoming: Candidate): Boolean =
+        (c.userEdited && incoming.fromBill) || (incoming.userEdited && c.fromBill)
 
     /**
      * L3：商户名也对得上，属于强证据。
