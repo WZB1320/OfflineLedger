@@ -131,4 +131,19 @@
     <string name="fix_once">仅改这一笔</string>
     <string name="fix_unknown_note">这笔没有商户名（通知不带收款方）。修正会按「未识别商户」这个桶生效，影响所有同样缺商户名的记录；更彻底的做法是导入一次账单，把真实商户名回填过来。</string>
     <string name="fixed_toast">已记住：%1$s → %2$s</string>
+
+    <!-- 分类管理（两级分类 + 自定义增删，2026-09-23） -->
+    <string name="category_manage">管理分类</string>
+    <string name="category_manage_title">分类管理</string>
+    <string name="category_add">新增分类</string>
+    <string name="category_add_name_hint">分类名称</string>
+    <string name="category_add_parent_label">挂载位置</string>
+    <string name="category_add_as_top">作为新的一级分类</string>
+    <string name="category_add_dup">已有同名分类，换个名字</string>
+    <string name="category_add_done">已新增「%1$s」</string>
+    <string name="category_preset_no_delete">预置分类不可删除</string>
+    <string name="category_delete_title">删除「%1$s」？</string>
+    <string name="category_delete_body">其下历史记录将归入「%1$s」，账不会丢。</string>
+    <string name="category_delete_has_children">下面还有子分类，先删子分类</string>
+    <string name="category_delete_done">已删除「%1$s」</string>
 </resources>

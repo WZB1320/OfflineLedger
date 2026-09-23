@@ -53,6 +53,8 @@ class LedgerDb(context: Context) :
 
         // 规则版本等元信息
         db.execSQL("CREATE TABLE rule_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
+
+        createCategories(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -64,6 +66,40 @@ class LedgerDb(context: Context) :
             // 合并回填的候选查询索引。加索引不动数据，纯增量，无迁移风险。
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_txn_match ON txn(amount_hash, direction, occurred_at)")
         }
+        if (oldVersion < 4) {
+            // 分类树：两级分类（一级 + 二级）+ 用户自定义。
+            // 建表 + 预置 seed，不动既有 txn / merchant_memory 的任何一行——
+            // 历史 category_id（全部是预置一级 id）在新表里仍是合法值。
+            createCategories(db)
+        }
+    }
+
+    /**
+     * 建 categories 表并写入预置清单。
+     *
+     * onCreate（新装）与 onUpgrade v4（老用户）共用同一条路，所以必须幂等：
+     * CREATE TABLE IF NOT EXISTS + INSERT OR IGNORE。后者还顺带兜住一种边角——
+     * 用户自建了与预置同名的分类时（理论上有 UNIQUE 拦着，不该发生），
+     * 被忽略的是预置那行，用户的自定义永远优先。
+     */
+    private fun createCategories(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS categories (
+                id        TEXT PRIMARY KEY,
+                name      TEXT NOT NULL UNIQUE,
+                parent_id TEXT NOT NULL DEFAULT '',
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                sort      INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        for (p in CategoryPresets.ALL) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO categories(id, name, parent_id, is_custom, sort) VALUES(?, ?, ?, ?, ?)",
+                arrayOf(p.id, p.name, p.parentId, "0", p.sort.toString())
+            )
+        }
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -73,6 +109,6 @@ class LedgerDb(context: Context) :
 
     companion object {
         const val DB_NAME = "ledger.db"
-        const val DB_VERSION = 3
+        const val DB_VERSION = 4
     }
 }

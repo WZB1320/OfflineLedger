@@ -111,4 +111,45 @@ class CategoryBreakdownTest {
         val r = CategoryBreakdown.of(list, listOf(food, transport), fallback, unknown)
         assertEquals(listOf("transport", "food"), r.slices.map { it.categoryId })
     }
+
+    // ------------------------------------------------------------ 二级按一级聚合（v4 分类树）
+
+    /**
+     * 记录可以落在二级（txn.category_id 指向最细粒度），
+     * 统计必须折叠回一级出条形——否则「早餐 + 午餐」会和「餐饮」并列，
+     * 同一笔钱的口径被拆成三个条目，占比加起来不是 100%。
+     */
+    @Test
+    fun `二级折叠到一级后聚合`() {
+        val rollup = mapOf(
+            "food.breakfast" to "food",
+            "food.takeout" to "food",
+            "transport.taxi" to "transport"
+        )
+        val list = listOf(
+            t(20.0, "food.breakfast", "包子铺"),
+            t(35.0, "food.takeout", "美团"),
+            t(15.0, "transport.taxi", "滴滴"),
+            t(30.0, "food", "星巴克")
+        )
+        val r = CategoryBreakdown.of(list, listOf(food, transport), fallback, unknown, rollup)
+
+        val foodSlice = r.slices.first { it.categoryId == "food" }
+        // 20 + 35 + 30：二级的两笔与一级的一笔都归到「餐饮」
+        assertEquals(85.0, foodSlice.amount, 0.001)
+        assertEquals(3, foodSlice.count)
+        val transportSlice = r.slices.first { it.categoryId == "transport" }
+        assertEquals(15.0, transportSlice.amount, 0.001)
+        assertEquals(100.0, r.totalExpense, 0.001)
+    }
+
+    @Test
+    fun `未折叠的二级 id 回退到一级口径`() {
+        // rollup 缺了映射（调用方兜底失败时的防御）：未知 id 保持原样单独成条，
+        // 不能让这笔账从统计里消失
+        val list = listOf(t(10.0, "food.breakfast", "包子铺"))
+        val r = CategoryBreakdown.of(list, listOf(food), fallback, unknown)
+        // 不传 rollup 时 food.breakfast 不在 byId 里 —— sum 条目被跳过但不丢总额
+        assertEquals(10.0, r.totalExpense, 0.001)
+    }
 }

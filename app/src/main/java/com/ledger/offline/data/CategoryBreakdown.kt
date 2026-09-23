@@ -52,11 +52,17 @@ object CategoryBreakdown {
         fun accepted(): Boolean = unclassifiedRatio < ACCEPT_RATIO
     }
 
+    /**
+     * @param rollup 二级 id → 一级 id 的折叠表（来自 CategoryDao.rollup）。
+     *        记录可以落在二级（txn.category_id 指向最细粒度），统计条形按一级聚合；
+     *        空表 = 全是一级（旧数据 / 单测场景），行为与改造前完全一致。
+     */
     fun of(
         txns: List<Transaction>,
         categories: List<CategoryRule>,
         fallback: CategoryRule,
-        unknownMerchant: String
+        unknownMerchant: String,
+        rollup: Map<String, String> = emptyMap()
     ): Result {
         val expense = txns.filter { it.direction == Direction.EXPENSE }
         val total = expense.sumOf { it.amount }
@@ -71,8 +77,11 @@ object CategoryBreakdown {
         val counts = HashMap<String, Int>()
 
         for (t in expense) {
-            if (t.categoryId == fallback.id) {
-                // 已经处在 categoryId == fallback.id 的分支里，这里的 merchant 判据
+            // 二级折叠到一级后再分组；fallback 判定也用折叠后的 id——
+            // other 本身是一级，折叠不改变它，口径统一
+            val cid = rollup[t.categoryId] ?: t.categoryId
+            if (cid == fallback.id) {
+                // 已经处在 cid == fallback.id 的分支里，这里的 merchant 判据
                 // 与 FlowList.isUnclassified 是同一个拆分口径，别再写第二份
                 if (FlowList.isUnclassified(t, unknownMerchant, fallback.id)) {
                     fallbackUnknown += t.amount
@@ -83,8 +92,8 @@ object CategoryBreakdown {
                 }
                 continue
             }
-            sums[t.categoryId] = (sums[t.categoryId] ?: 0.0) + t.amount
-            counts[t.categoryId] = (counts[t.categoryId] ?: 0) + 1
+            sums[cid] = (sums[cid] ?: 0.0) + t.amount
+            counts[cid] = (counts[cid] ?: 0) + 1
         }
 
         fun ratio(v: Double) = if (total <= 0.0) 0.0 else v / total

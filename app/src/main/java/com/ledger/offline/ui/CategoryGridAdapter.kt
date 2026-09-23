@@ -17,13 +17,25 @@ import com.ledger.offline.parse.CategoryRule
  * 加分类只改规则文件，UI 自动跟上。
  */
 class CategoryGridAdapter(
-    private val items: List<CategoryRule>,
+    private var items: List<CategoryRule>,
     private val onPick: (CategoryRule) -> Unit
 ) : RecyclerView.Adapter<CategoryGridAdapter.Holder>() {
 
     private var selectedId: String = items.firstOrNull()?.id.orEmpty()
 
     fun selected(): CategoryRule? = items.firstOrNull { it.id == selectedId }
+
+    /**
+     * 整体替换条目（两级联动时二级网格随一级切换）。
+     * 选中项不在新列表里时落到首项，保持「永远有一个选中」的交互约定。
+     */
+    fun replaceItems(next: List<CategoryRule>) {
+        items = next
+        if (items.none { it.id == selectedId }) {
+            selectedId = items.firstOrNull()?.id.orEmpty()
+        }
+        notifyDataSetChanged()
+    }
 
     fun select(id: String) {
         val old = items.indexOfFirst { it.id == selectedId }

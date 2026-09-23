@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -40,10 +41,13 @@ import com.ledger.offline.classify.MerchantNormalizer
 import com.ledger.offline.core.ServiceLocator
 import com.ledger.offline.data.AmountInput
 import com.ledger.offline.data.CategoryBreakdown
+import com.ledger.offline.data.CategoryDao
+import com.ledger.offline.data.CategoryPresets
 import com.ledger.offline.data.FlowList
 import com.ledger.offline.data.MergeMatcher
 import com.ledger.offline.data.MonthWindow
 import com.ledger.offline.data.TransactionDao
+import com.ledger.offline.data.model.Category
 import com.ledger.offline.data.model.Direction
 import com.ledger.offline.data.model.Transaction
 import com.ledger.offline.databinding.ActivityMainBinding
@@ -60,7 +64,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var flowAdapter: TransactionAdapter
     private lateinit var statAdapter: StatBarAdapter
-    private var categoryAdapter: CategoryGridAdapter? = null
+
+    /** 记一笔页的两级分类选择器（一级网格 + 二级网格联动） */
+    private var addPicker: CategoryPicker? = null
 
     /** 一旦置位就停掉后续逻辑，界面停留在诊断视图上 */
     private var startupFailed = false
@@ -341,7 +347,9 @@ class MainActivity : AppCompatActivity() {
         renderChips()
 
         val shown = FlowList.filter(all, filter, MerchantNormalizer.UNKNOWN_MERCHANT, rules.fallback.id)
-        flowAdapter.submit(FlowList.group(shown), { rules.colorHex(it) }, rules.fallback.id)
+        // 记录可能落在二级（txn.category_id 指向最细粒度），圆点颜色取其一级的识别色
+        val rollup = ServiceLocator.categoryDao.rollupMap()
+        flowAdapter.submit(FlowList.group(shown), { rules.colorHex(rollup[it] ?: it) }, rules.fallback.id)
 
         // 选中的那一行可能已经不在窗口里了：改了时间翻到别的月、删掉、或切了筛选。
         // 不清的话会出现「有一行高亮着，但屏幕上找不到它」的状态。
@@ -402,7 +410,9 @@ class MainActivity : AppCompatActivity() {
         binding.tvStatBalance.text = (if (balance >= 0) "+" else "-") + "¥" + money(kotlin.math.abs(balance))
 
         val result = CategoryBreakdown.of(
-            all, rules.categories, rules.fallback, MerchantNormalizer.UNKNOWN_MERCHANT
+            all, rules.categories, rules.fallback, MerchantNormalizer.UNKNOWN_MERCHANT,
+            // 记在二级的账按一级聚合出条形，明细仍留在流水里
+            ServiceLocator.categoryDao.rollupMap()
         )
         binding.tvStatCount.text = getString(R.string.stat_count_hint, result.count)
         statAdapter.submit(result.slices)
@@ -425,11 +435,10 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------ 记一笔
 
     private fun bindAddPage() {
-        val rules = RuleStore.classifyRules(this).all()
-        categoryAdapter = CategoryGridAdapter(rules) { /* 选中即生效，保存时读取 */ }
-        binding.catGrid.layoutManager = GridLayoutManager(this, CATEGORY_SPAN)
-        binding.catGrid.adapter = categoryAdapter
-        binding.catGrid.isNestedScrollingEnabled = false
+        // 两级分类选择：一级网格常驻，点选某一级后在其下展开二级。
+        // 记一笔默认落在「其他」——不替用户猜，等他动手选。
+        addPicker = CategoryPicker(binding.catGrid, binding.catGrid2, null)
+        binding.tvManageCategories.setOnClickListener { showCategoryManager() }
 
         binding.tvAddCancel.setOnClickListener {
             // 取消等于「放弃这次录入」，表单必须清空，否则下次点进来看到的是上一次的半截内容
@@ -529,7 +538,7 @@ class MainActivity : AppCompatActivity() {
             binding.etAmount.requestFocus()
             return
         }
-        val rule = categoryAdapter?.selected() ?: return
+        val pickedCategory = addPicker?.selected() ?: return
         val merchant = binding.etMerchant.text.toString().trim()
 
         val result = ServiceLocator.mergeRecord(
@@ -549,8 +558,8 @@ class MainActivity : AppCompatActivity() {
                     ServiceLocator.correctCategory(
                         id,
                         merchant.ifBlank { MerchantNormalizer.UNKNOWN_MERCHANT },
-                        rule.id,
-                        rule.name
+                        pickedCategory.id,
+                        pickedCategory.name
                     )
                 }
                 // 让这一笔一定出现在视野里：时间可能不是当月，筛选也可能把它挡在外面。
@@ -600,18 +609,11 @@ class MainActivity : AppCompatActivity() {
      * 等于允许用户手改的结果被机器否决。所以直接 [TransactionDao.updateRecord]。
      */
     private fun showEditSheet(txn: Transaction) {
-        val rules = RuleStore.classifyRules(this).all()
-        var picked: CategoryRule = rules.firstOrNull { it.id == txn.categoryId } ?: rules.first()
+        val grid = RecyclerView(this)
+        val childGrid = RecyclerView(this)
+        val picker = CategoryPicker(grid, childGrid, txn.categoryId)
         var direction = txn.direction
         var occurredAt = txn.occurredAt
-
-        val gridAdapter = CategoryGridAdapter(rules) { picked = it }
-        gridAdapter.select(picked.id)
-        val grid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 4)
-            adapter = gridAdapter
-            isNestedScrollingEnabled = false
-        }
 
         val etAmount = editField(getString(R.string.add_amount_hint)).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -685,6 +687,8 @@ class MainActivity : AppCompatActivity() {
             addView(fieldLabel(getString(R.string.add_time_label)))
             addView(tvTime)
             addView(grid)
+            addView(childGrid)
+            addView(manageCategoryLink())
             addView(cbRemember)
         }
 
@@ -706,6 +710,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 val merchant = etMerchant.text.toString().trim()
                     .ifBlank { MerchantNormalizer.UNKNOWN_MERCHANT }
+                val picked = picker.selected()
                 ServiceLocator.dao.updateRecord(
                     txn.copy(
                         amount = amount,
@@ -754,16 +759,9 @@ class MainActivity : AppCompatActivity() {
     /** 长按改分类 → 写入修正记忆，下次同商户自动命中 */
     private fun showCategorySheet(txn: Transaction) {
         val classifies = RuleStore.classifyRules(this)
-        val rules = classifies.all()
-        var picked: CategoryRule = rules.firstOrNull { it.id == txn.categoryId } ?: rules.first()
-        val adapter = CategoryGridAdapter(rules) { picked = it }
-        adapter.select(picked.id)
-
-        val grid = androidx.recyclerview.widget.RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 4)
-            this.adapter = adapter
-            isNestedScrollingEnabled = false
-        }
+        val grid = RecyclerView(this)
+        val childGrid = RecyclerView(this)
+        val picker = CategoryPicker(grid, childGrid, txn.categoryId)
 
         val container = verticalContainer().apply {
             addView(txnCaption(txn))
@@ -774,31 +772,284 @@ class MainActivity : AppCompatActivity() {
                 addView(noteView(getString(R.string.fix_unknown_note)))
             }
             addView(grid)
+            addView(childGrid)
+            addView(manageCategoryLink())
         }
 
         AlertDialog.Builder(this)
             .setTitle(R.string.fix_category_title)
             .setView(container)
             .setPositiveButton(R.string.fix_remember) { _, _ ->
-                applyCorrection(txn, picked, remember = true)
+                applyCorrection(txn, picker.selected(), remember = true)
             }
             .setNegativeButton(R.string.fix_once) { _, _ ->
-                applyCorrection(txn, picked, remember = false)
+                applyCorrection(txn, picker.selected(), remember = false)
             }
             .setNeutralButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun applyCorrection(txn: Transaction, rule: CategoryRule, remember: Boolean) {
+    private fun applyCorrection(txn: Transaction, cat: Category, remember: Boolean) {
         ServiceLocator.correctCategory(
-            txn.id, txn.merchant, rule.id, rule.name, remember = remember
+            txn.id, txn.merchant, cat.id, cat.name, remember = remember
         )
         if (remember && txn.merchant != MerchantNormalizer.UNKNOWN_MERCHANT) {
-            toast(getString(R.string.fixed_toast, txn.merchant, rule.name))
+            toast(getString(R.string.fixed_toast, txn.merchant, cat.name))
         } else {
-            toast(rule.name)
+            toast(cat.name)
         }
         refresh()
+    }
+
+    // ------------------------------------------------------------ 分类（两级选择 + 自定义管理）
+
+    /** 「管理分类」入口链接：记一笔页与两处弹窗共用一份 */
+    private fun manageCategoryLink() = TextView(this).apply {
+        text = getString(R.string.category_manage)
+        setTextColor(getColor(R.color.brand))
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        setPadding(0, dp(8), 0, dp(4))
+        setOnClickListener { showCategoryManager() }
+    }
+
+    /**
+     * 两级分类选择器：一级网格常驻，二级网格随一级切换展开。
+     *
+     * 落库永远存**最细粒度**（选了二级存二级 id，只选一级存一级 id），
+     * 统计层再按一级聚合——存储按明细、展示按汇总，两边不打架。
+     * 三处选择场景（记一笔 / 修改弹窗 / 长按修正）共用这一个实现。
+     */
+    private inner class CategoryPicker(
+        private val parentGrid: RecyclerView,
+        private val childGrid: RecyclerView,
+        initialId: String?
+    ) {
+        private var cats: List<Category> = ServiceLocator.categoryDao.all()
+        private var rollup: Map<String, String> = CategoryDao.rollup(cats)
+        private var picked: Category = resolve(initialId ?: CategoryPresets.FALLBACK_ID)
+
+        /** 二级与自定义分类没有专属识别色——取其一级的色，视觉上聚成一组 */
+        private val colorOf: (String) -> String = {
+            RuleStore.classifyRules(this@MainActivity).colorHex(rollup[it] ?: it)
+        }
+
+        private val parentAdapter = CategoryGridAdapter(parents().toRules()) { rule ->
+            picked = cats.first { it.id == rule.id }
+            applySelection()
+        }
+        private val childAdapter = CategoryGridAdapter(childrenOf(topOf(picked)).toRules()) { rule ->
+            picked = cats.first { it.id == rule.id }
+            applySelection()
+        }
+
+        init {
+            parentGrid.layoutManager = GridLayoutManager(this@MainActivity, CATEGORY_SPAN)
+            parentGrid.adapter = parentAdapter
+            parentGrid.isNestedScrollingEnabled = false
+            childGrid.layoutManager = GridLayoutManager(this@MainActivity, CATEGORY_CHILD_SPAN)
+            childGrid.adapter = childAdapter
+            childGrid.isNestedScrollingEnabled = false
+            applySelection()
+        }
+
+        fun selected(): Category = picked
+
+        /** 管理页增删排序后调用：从库里重载，尽量保住原选中（被删则回退兜底） */
+        fun reload() {
+            val keepId = picked.id
+            cats = ServiceLocator.categoryDao.all()
+            rollup = CategoryDao.rollup(cats)
+            picked = resolve(keepId)
+            parentAdapter.replaceItems(parents().toRules())
+            applySelection()
+        }
+
+        private fun applySelection() {
+            val topId = topOf(picked)
+            parentAdapter.select(topId)
+            val children = childrenOf(topId)
+            if (children.isEmpty()) {
+                childGrid.visibility = View.GONE
+            } else {
+                childGrid.visibility = View.VISIBLE
+                childAdapter.replaceItems(children.toRules())
+                childAdapter.select(picked.id)
+            }
+        }
+
+        private fun topOf(c: Category): String = rollup[c.id] ?: c.id
+
+        private fun parents(): List<Category> = cats.filter { it.parentId.isEmpty() }
+
+        private fun childrenOf(parentId: String): List<Category> =
+            cats.filter { it.parentId == parentId }
+
+        private fun resolve(id: String): Category =
+            cats.firstOrNull { it.id == id }
+                ?: cats.firstOrNull { it.id == CategoryPresets.FALLBACK_ID }
+                ?: cats.first()
+
+        private fun List<Category>.toRules(): List<CategoryRule> =
+            map { CategoryRule(it.id, it.name, emptyList(), colorOf(it.id)) }
+    }
+
+    /**
+     * 分类管理：新增 / 删除（仅自定义）/ 同级排序。
+     * 预置分类不可删——既有账目、关键词规则、官方种子三处都锚在这批 id 上，
+     * 删掉一个就是三处同时断。
+     */
+    private fun showCategoryManager() {
+        val container = verticalContainer()
+
+        fun rebuild() {
+            container.removeAllViews()
+            val all = ServiceLocator.categoryDao.all()
+            val rollup = CategoryDao.rollup(all)
+            val rules = RuleStore.classifyRules(this)
+            for (cat in all) {
+                container.addView(
+                    categoryManagerRow(cat, rollup, { rules.colorHex(it) }, ::rebuild)
+                )
+            }
+            // 记一笔页的选择器还开着，名单变了必须跟上
+            addPicker?.reload()
+        }
+        rebuild()
+
+        val scroll = ScrollView(this).apply {
+            addView(container)
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.category_manage_title)
+            .setView(scroll)
+            .setPositiveButton(R.string.category_add) { _, _ -> showAddCategoryDialog() }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    /** 管理列表的一行：色点 + 名称（二级缩进）+ 自定义的 ↑↓删 */
+    private fun categoryManagerRow(
+        cat: Category,
+        rollup: Map<String, String>,
+        colorOf: (String) -> String,
+        onChange: () -> Unit
+    ): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+        }
+        row.addView(View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(
+                    runCatching { Color.parseColor(colorOf(rollup[cat.id] ?: cat.id)) }
+                        .getOrDefault(Color.GRAY)
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(10), dp(10)).apply {
+                rightMargin = dp(10)
+            }
+        })
+        row.addView(TextView(this).apply {
+            text = cat.name
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextColor(getColor(R.color.text_primary))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { if (cat.parentId.isNotEmpty()) marginStart = dp(16) }
+        })
+        if (cat.isCustom) {
+            fun actionBtn(label: String, onTap: () -> Unit) = TextView(this).apply {
+                text = label
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(getColor(R.color.brand))
+                setPadding(dp(10), dp(2), dp(10), dp(2))
+                setOnClickListener { onTap() }
+            }
+            row.addView(actionBtn("↑") { ServiceLocator.categoryDao.move(cat.id, true); onChange() })
+            row.addView(actionBtn("↓") { ServiceLocator.categoryDao.move(cat.id, false); onChange() })
+            row.addView(actionBtn("删") { confirmRemoveCategory(cat) { onChange() } })
+        } else {
+            row.addView(TextView(this).apply {
+                text = "预置"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                setTextColor(getColor(R.color.text_secondary))
+            })
+        }
+        return row
+    }
+
+    /** 删除确认：先讲清「账会归到哪」，删除才不可怕 */
+    private fun confirmRemoveCategory(cat: Category, onDone: () -> Unit) {
+        val back = CategoryDao.fallbackTarget(cat, ServiceLocator.categoryDao.all())
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.category_delete_title, cat.name))
+            .setMessage(getString(R.string.category_delete_body, back.name))
+            .setPositiveButton(R.string.row_delete) { _, _ ->
+                when (ServiceLocator.categoryDao.removeCustom(cat.id)) {
+                    CategoryDao.Removal.OK -> {
+                        toast(getString(R.string.category_delete_done, cat.name))
+                        onDone()
+                    }
+                    CategoryDao.Removal.HAS_CHILDREN ->
+                        toast(getString(R.string.category_delete_has_children))
+                    else -> toast(getString(R.string.category_preset_no_delete))
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** 新增自定义分类：起名 + 选挂载位置（新一级 / 某个一级之下，最多两级） */
+    private fun showAddCategoryDialog() {
+        val et = editField(getString(R.string.category_add_name_hint)).apply {
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        val parents = ServiceLocator.categoryDao.all().filter { it.parentId.isEmpty() }
+        val radioGroup = android.widget.RadioGroup(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        fun option(label: String, value: String, checked: Boolean) =
+            android.widget.RadioButton(this@MainActivity).apply {
+                text = label
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(getColor(R.color.text_primary))
+                isChecked = checked
+                setOnClickListener { tag = value }
+                tag = value
+            }
+        radioGroup.addView(option(getString(R.string.category_add_as_top), "", true))
+        for (p in parents) {
+            radioGroup.addView(option(p.name, p.id, false))
+        }
+
+        val container = verticalContainer().apply {
+            addView(et)
+            addView(fieldLabel(getString(R.string.category_add_parent_label)))
+            addView(radioGroup)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.category_add)
+            .setView(ScrollView(this).apply { addView(container) })
+            .setPositiveButton(R.string.add_save) { _, _ ->
+                val name = et.text.toString().trim()
+                if (name.isEmpty()) return@setPositiveButton
+                // RadioGroup 里选中项的 tag 即目标父级 id（空串 = 新建一级）
+                val parentId = radioGroup.findViewById<android.widget.RadioButton>(
+                    radioGroup.checkedRadioButtonId
+                )?.tag as? String ?: ""
+                if (!ServiceLocator.categoryDao.addCustom(name, parentId)) {
+                    toast(getString(R.string.category_add_dup))
+                } else {
+                    toast(getString(R.string.category_add_done, name))
+                    showCategoryManager()
+                    addPicker?.reload()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     // ------------------------------------------------------------ 导入结果
@@ -1246,8 +1497,11 @@ class MainActivity : AppCompatActivity() {
         /** 单月上限。账单一个月几百笔，500 足够；再多就该翻月而不是一屏拉到底 */
         private const val MONTH_ROW_LIMIT = 500
 
-        /** 记一笔的分类网格列数：10 个分类 + 兜底共 11 项，6 列两行放得下 */
+        /** 记一笔的一级分类网格列数：13 个一级，6 列三行放得下 */
         private const val CATEGORY_SPAN = 6
+
+        /** 二级分类网格列数：每个一级的二级最多 6 个，4 列两行内放得下 */
+        private const val CATEGORY_CHILD_SPAN = 4
 
         /** 最多往前翻多少个月 */
         private const val MIN_MONTH_OFFSET = -24

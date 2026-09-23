@@ -5,6 +5,7 @@ import com.ledger.offline.classify.Classification
 import com.ledger.offline.classify.Classifier
 import com.ledger.offline.classify.MerchantNormalizer
 import com.ledger.offline.crypto.FieldCipher
+import com.ledger.offline.data.CategoryDao
 import com.ledger.offline.data.LedgerDb
 import com.ledger.offline.data.MonthWindow
 import com.ledger.offline.data.TransactionDao
@@ -26,6 +27,12 @@ object ServiceLocator {
     private lateinit var appContext: Context
 
     val dao: TransactionDao by lazy { TransactionDao(LedgerDb(appContext)) }
+
+    /**
+     * 分类树 DAO。与 [dao] 各持一个 SQLiteOpenHelper 实例：同进程内对同一库文件
+     * 开多个 helper 是 Android 官方支持的场景，写锁由 SQLite 自己仲裁。
+     */
+    val categoryDao: CategoryDao by lazy { CategoryDao(LedgerDb(appContext)) }
 
     val classifyRules: ClassifyRules by lazy { RuleStore.classifyRules(appContext) }
 

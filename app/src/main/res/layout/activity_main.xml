@@ -533,6 +533,29 @@
                 android:paddingEnd="16dp"
                 android:clipToPadding="false" />
 
+            <!-- 二级分类网格：点选某个一级后显示其二级，无二级（转账/其他）时隐藏 -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/catGrid2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="2dp"
+                android:clipToPadding="false"
+                android:visibility="gone" />
+
+            <!-- 分类管理入口：增删自定义分类、排序。放在两级网格之后，紧贴使用场景 -->
+            <TextView
+                android:id="@+id/tvManageCategories"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="4dp"
+                android:text="@string/category_manage"
+                android:textColor="@color/brand"
+                android:textSize="12sp" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
