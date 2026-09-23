@@ -72,6 +72,14 @@ class LedgerDb(context: Context) :
             // 历史 category_id（全部是预置一级 id）在新表里仍是合法值。
             createCategories(db)
         }
+        if (oldVersion < 5) {
+            // 预置分类清单调整（0.2.8→0.2.9）：
+            //   娱乐二级「影音会员」(entertainment.media) 移除，换成「旅游」等
+            //   餐饮 +水果/买菜/油盐酱醋、娱乐 +旅游/花鸟宠物、教育 +幼儿教育、社交 +孝敬
+            // 先把指向 entertainment.media 的历史 txn / 商户记忆回退到父级 entertainment，
+            // 再删该行，最后 INSERT OR IGNORE 补入全部新预置（已有的不动，新的补进去）。
+            upgradeCategoriesV5(db)
+        }
     }
 
     /**
@@ -94,6 +102,45 @@ class LedgerDb(context: Context) :
             )
             """.trimIndent()
         )
+        seedCategories(db)
+    }
+
+    /**
+     * v5 迁移：调整预置分类清单。
+     *
+     * 1) entertainment.media「影音会员」被移除——先回退其下 txn / merchant_memory
+     *    到父级 entertainment（不丢账），再 DELETE 该行。
+     * 2) 全表 INSERT OR IGNORE 补入新预置（水果/买菜/油盐酱醋/旅游/花鸟宠物/
+     *    幼儿教育/孝敬）。已存在的行（包括用户在 0.2.8 上新建的同名自定义）
+     *    不被覆盖——用户数据永远优先。
+     * 3) 更新既有预置行的 sort，使展示顺序与新清单一致。
+     */
+    private fun upgradeCategoriesV5(db: SQLiteDatabase) {
+        // 回退 entertainment.media 的账目到父级
+        db.execSQL(
+            "UPDATE txn SET category_id = 'entertainment', category_name = '娱乐' WHERE category_id = 'entertainment.media'"
+        )
+        db.execSQL(
+            "UPDATE merchant_memory SET category_id = 'entertainment', category_name = '娱乐' WHERE category_id = 'entertainment.media'"
+        )
+        db.execSQL("DELETE FROM categories WHERE id = 'entertainment.media'")
+
+        // 补入新预置 + 更新 sort
+        for (p in CategoryPresets.ALL) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO categories(id, name, parent_id, is_custom, sort) VALUES(?, ?, ?, ?, ?)",
+                arrayOf(p.id, p.name, p.parentId, "0", p.sort.toString())
+            )
+            // 已存在的预置行：更新 sort 保持展示顺序
+            db.execSQL(
+                "UPDATE categories SET sort = ? WHERE id = ? AND is_custom = 0",
+                arrayOf(p.sort.toString(), p.id)
+            )
+        }
+    }
+
+    /** 把 [CategoryPresets.ALL] 写入 categories 表（INSERT OR IGNORE，幂等） */
+    private fun seedCategories(db: SQLiteDatabase) {
         for (p in CategoryPresets.ALL) {
             db.execSQL(
                 "INSERT OR IGNORE INTO categories(id, name, parent_id, is_custom, sort) VALUES(?, ?, ?, ?, ?)",
@@ -109,6 +156,6 @@ class LedgerDb(context: Context) :
 
     companion object {
         const val DB_NAME = "ledger.db"
-        const val DB_VERSION = 4
+        const val DB_VERSION = 5
     }
 }

@@ -18,15 +18,18 @@ object CategoryPresets {
     data class Preset(val id: String, val name: String, val parentId: String, val sort: Int)
 
     val ALL: List<Preset> = listOf(
-        // ---------- 一级 + 餐饮二级 ----------
+        // ---------- 一级 + 餐饮二级（8 个） ----------
         Preset("food", "餐饮", "", 10),
         Preset("food.breakfast", "早餐", "food", 11),
         Preset("food.lunch", "午餐", "food", 12),
         Preset("food.dinner", "晚餐", "food", 13),
         Preset("food.takeout", "外卖", "food", 14),
         Preset("food.snacks", "零食饮料", "food", 15),
+        Preset("food.fruit", "水果", "food", 16),
+        Preset("food.grocery", "买菜", "food", 17),
+        Preset("food.seasoning", "油盐酱醋", "food", 18),
 
-        // ---------- 交通 ----------
+        // ---------- 交通（5 个） ----------
         Preset("transport", "交通", "", 20),
         Preset("transport.transit", "公交地铁", "transport", 21),
         Preset("transport.taxi", "打车", "transport", 22),
@@ -34,51 +37,54 @@ object CategoryPresets {
         Preset("transport.parking", "停车过路", "transport", 24),
         Preset("transport.ticket", "火车机票", "transport", 25),
 
-        // ---------- 购物 ----------
+        // ---------- 购物（4 个） ----------
         Preset("shopping", "购物", "", 30),
         Preset("shopping.clothes", "服饰鞋包", "shopping", 31),
         Preset("shopping.daily", "日用百货", "shopping", 32),
         Preset("shopping.electronics", "数码电器", "shopping", 33),
         Preset("shopping.beauty", "美妆护肤", "shopping", 34),
 
-        // ---------- 生活缴费 ----------
+        // ---------- 生活缴费（3 个） ----------
         Preset("living", "生活缴费", "", 40),
         Preset("living.phone", "话费网费", "living", 41),
         Preset("living.utilities", "水电燃气", "living", 42),
         Preset("living.property", "物业保洁", "living", 43),
 
-        // ---------- 医疗 ----------
+        // ---------- 医疗（2 个） ----------
         Preset("medical", "医疗", "", 50),
         Preset("medical.medicine", "药品", "medical", 51),
         Preset("medical.clinic", "门诊体检", "medical", 52),
 
-        // ---------- 娱乐 ----------
+        // ---------- 娱乐（4 个） ----------
         Preset("entertainment", "娱乐", "", 60),
-        Preset("entertainment.media", "影音会员", "entertainment", 61),
+        Preset("entertainment.travel", "旅游", "entertainment", 61),
         Preset("entertainment.game", "游戏娱乐", "entertainment", 62),
         Preset("entertainment.sports", "运动健身", "entertainment", 63),
+        Preset("entertainment.pets", "花鸟宠物", "entertainment", 64),
 
-        // ---------- 教育 ----------
+        // ---------- 教育（3 个） ----------
         Preset("education", "教育", "", 70),
         Preset("education.course", "课程培训", "education", 71),
         Preset("education.books", "书报文具", "education", 72),
+        Preset("education.toddler", "幼儿教育", "education", 73),
 
-        // ---------- 住房 ----------
+        // ---------- 住房（3 个） ----------
         Preset("housing", "住房", "", 80),
         Preset("housing.rent", "房租", "housing", 81),
         Preset("housing.mortgage", "房贷", "housing", 82),
         Preset("housing.renovation", "装修维修", "housing", 83),
 
-        // ---------- 旅行（2026-09-23 新增一级） ----------
+        // ---------- 旅行 ----------
         Preset("travel", "旅行", "", 90),
         Preset("travel.hotel", "酒店民宿", "travel", 91),
         Preset("travel.flight", "机票火车", "travel", 92),
         Preset("travel.tickets", "门票游玩", "travel", 93),
 
-        // ---------- 社交（2026-09-23 新增一级） ----------
+        // ---------- 社交（3 个） ----------
         Preset("social", "社交", "", 100),
         Preset("social.gifts", "人情往来", "social", 101),
         Preset("social.party", "聚会请客", "social", 102),
+        Preset("social.filial", "孝敬", "social", 103),
 
         // ---------- 投资理财 ----------
         Preset("investment", "投资理财", "", 110),
