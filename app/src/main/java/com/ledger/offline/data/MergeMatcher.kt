@@ -204,11 +204,15 @@ object MergeMatcher {
     private fun manualMeetsAuto(c: Candidate, incoming: Candidate): Boolean =
         c.fromManual != incoming.fromManual
 
-    /** L3：商户名也对得上，属于强证据 */
+    /**
+     * L3：商户名也对得上，属于强证据。
+     * 单号守卫与 L2 同源（方案 §4.3：**任何指纹层**都不许并「两边都有单号且不一致」的记录）——
+     * 没有它，同一家店 3 分钟内连付两笔同金额（单号必然不同、商户名都来自账单）会被误并成一笔。
+     */
     private fun fullHit(c: Candidate, incoming: Candidate): Boolean =
         !c.merchantUnknown && c.merchant == incoming.merchant &&
             sameAmount(c, incoming) && c.direction == incoming.direction &&
-            inWindow(c, incoming)
+            inWindow(c, incoming) && orderNumbersCompatible(c, incoming)
 
     private fun sameAmount(c: Candidate, incoming: Candidate): Boolean =
         abs(c.amount - incoming.amount) < AMOUNT_EPSILON

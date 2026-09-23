@@ -269,6 +269,27 @@ class MergeMatcherTest {
         assertEquals(MergeMatcher.Level.NEW, decision.level)
     }
 
+    @Test
+    fun `L3 两边都有单号且不一致时不命中——同店同额的两笔不同订单不能并`() {
+        // §4.3 的守卫是「任何指纹层都不许」：同一家便利店 3 分钟内连付两笔同金额，
+        // 商户名都来自账单（相同）、单号必然不同——单号不同即「可证明的两笔订单」，
+        // 并掉任何一笔都是丢账。L2 有 [orderNumbersCompatible] 拦着，L3 漏了就是从这个口子漏的。
+        val target = notification(merchant = "全家便利店", txnNo = "WX900")
+        val decision = MergeMatcher.decide(
+            incoming(merchant = "全家便利店", txnNo = "WX901"), listOf(target)
+        )
+        assertEquals(MergeMatcher.Level.NEW, decision.level)
+    }
+
+    @Test
+    fun `L3 单号只有一边有时不拦截——通知没单号是常态`() {
+        // 守卫只在「两边都有单号且对不上」时生效；账单带着单号、通知没有，
+        // 这是双路融合的日常形态，必须照常走完整指纹合并
+        val target = notification(merchant = "星巴克", txnNo = "WX001")
+        val decision = MergeMatcher.decide(incoming(merchant = "星巴克"), listOf(target))
+        assertEquals(MergeMatcher.Level.FULL, decision.level)
+    }
+
     // ------------------------------------------------------------ 回填纪律
 
     @Test
