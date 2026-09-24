@@ -249,6 +249,23 @@ class TransactionDao(private val db: LedgerDb) {
         return LedgerStats(expense, income, count)
     }
 
+    /**
+     * 记一笔「常用分类」的原始频次：category_id → 该方向上的笔数。
+     *
+     * 不做排序、过滤、截断——那些是可测的纯逻辑（[CategoryDao.topUsed]），SQL 只管数数。
+     * 范围是全部来源（含账单导入）：买得多的品类自然靠前，比只数手动记的更贴近真实习惯。
+     */
+    fun categoryUsageCount(direction: Direction): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        db.readableDatabase.rawQuery(
+            "SELECT category_id, COUNT(*) FROM txn WHERE direction = ? GROUP BY category_id",
+            arrayOf(direction.code.toString())
+        ).use { c ->
+            while (c.moveToNext()) out[c.getString(0)] = c.getInt(1)
+        }
+        return out
+    }
+
     fun updateCategory(id: Long, categoryId: String, categoryName: String) {
         val values = ContentValues().apply {
             put("category_id", categoryId)

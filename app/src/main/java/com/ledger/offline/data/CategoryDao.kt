@@ -162,5 +162,21 @@ class CategoryDao(private val db: LedgerDb) {
             val neighbor = siblings[other]
             return MovePlan(target.id, target.sort, neighbor.id, neighbor.sort)
         }
+
+        /**
+         * 「常用分类」的入选规则（0.2.11）：
+         * 出现 ≥ [minCount] 次的分类，按频次降序取前 [limit] 个。
+         *
+         * - 过滤 < minCount：偶发一次的不算「常用」，也避免新装机器把第一笔顶上常用区
+         * - 并列按 id 字典序决胜：展示顺序不随 SQLite GROUP BY 的返回顺序漂移
+         * - 「选中态」不在 chips 上表达：那是一份额外状态，与下方网格的选中不同步
+         *   就是一个新 bug。chips 只是快捷入口，选中仍由网格表达
+         */
+        fun topUsed(counts: Map<String, Int>, minCount: Int = 2, limit: Int = 8): List<String> =
+            counts.entries
+                .filter { it.value >= minCount }
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .take(limit)
+                .map { it.key }
     }
 }

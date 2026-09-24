@@ -525,6 +525,46 @@
                     android:textSize="13sp" />
             </LinearLayout>
 
+            <!--
+              常用分类条（0.2.11）：按当前收支方向统计的历史高频分类，一键直达。
+              点 chip 与点下方网格效果完全一致（选中 + 展开其父级的二级）。
+              没有分类达到「至少记过 2 次」的门槛时整行隐藏，不占位。
+            -->
+            <LinearLayout
+                android:id="@+id/usageRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="7dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvUsageLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="8dp"
+                    android:text="@string/usage_label"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:overScrollMode="never"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/usageChips"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/catGrid"
                 android:layout_width="match_parent"

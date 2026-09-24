@@ -96,6 +96,8 @@
     <string name="add_time_modify">修改</string>
     <string name="add_need_amount">请输入金额</string>
     <string name="amount_invalid">金额只能是数字，最多两位小数</string>
+    <!-- 常用分类条的标签（0.2.11）：右侧是按收支方向统计的历史高频分类 chips -->
+    <string name="usage_label">常用</string>
     <!-- 保存反馈只要一句（0.2.10 按用户要求）：新增与并入既有共用它 -->
     <string name="add_saved">保存成功</string>
     <string name="add_dup_hint">与已有记录重复，未重复记账</string>

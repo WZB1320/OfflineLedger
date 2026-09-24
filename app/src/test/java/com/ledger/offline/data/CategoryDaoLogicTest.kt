@@ -133,4 +133,47 @@ class CategoryDaoLogicTest {
         }
         assertTrue(map.values.all { it in CategoryPresets.TOP_IDS })
     }
+
+    // ------------------------------------------------------------ 常用分类（topUsed）
+
+    @Test
+    fun `常用分类按频次降序取前八个`() {
+        val counts = mapOf(
+            "food.grocery" to 12, "food.takeout" to 30, "transport.taxi" to 5,
+            "shopping.daily" to 9, "food" to 8, "medical.medicine" to 2,
+            "housing.rent" to 3, "social.gifts" to 4, "living.phone" to 6
+        )
+        assertEquals(
+            listOf(
+                "food.takeout", "food.grocery", "shopping.daily", "food",
+                "living.phone", "transport.taxi", "social.gifts", "housing.rent"
+            ),
+            CategoryDao.topUsed(counts)
+        )
+    }
+
+    @Test
+    fun `少于两次的偶发分类进不了常用区`() {
+        val counts = mapOf("food.grocery" to 1, "food.takeout" to 2)
+        assertEquals(
+            "记过一次就上榜，新装机器的第一笔会立刻占住常用区——偶发不算常用",
+            listOf("food.takeout"), CategoryDao.topUsed(counts)
+        )
+    }
+
+    @Test
+    fun `频次并列按 id 字典序决胜`() {
+        // SQLite GROUP BY 的返回顺序不保证，并列时若无决胜规则，展示顺序会漂移
+        val counts = mapOf("transport.taxi" to 3, "food.takeout" to 3, "food" to 3)
+        assertEquals(
+            listOf("food", "food.takeout", "transport.taxi"),
+            CategoryDao.topUsed(counts)
+        )
+    }
+
+    @Test
+    fun `空账本与全部未达标都返回空表`() {
+        assertTrue(CategoryDao.topUsed(emptyMap()).isEmpty())
+        assertTrue(CategoryDao.topUsed(mapOf("food" to 1, "other" to 1)).isEmpty())
+    }
 }

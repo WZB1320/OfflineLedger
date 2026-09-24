@@ -221,7 +221,11 @@ class MainActivity : AppCompatActivity() {
         // 而系统键盘不会因为没有输入框就自己消失
         if (leavingAdd) hideKeyboard()
         if (target != Page.ADD) refresh()
-        if (target == Page.ADD) focusAmountField()
+        if (target == Page.ADD) {
+            // 进页即重算常用分类：离开期间可能导入过账单、改过分类或删过记录
+            refreshUsageRow()
+            focusAmountField()
+        }
     }
 
     /**
@@ -466,6 +470,41 @@ class MainActivity : AppCompatActivity() {
         binding.tvSegIncome.setTextColor(
             getColor(if (direction == Direction.INCOME) R.color.surface else R.color.text_secondary)
         )
+        // 常用区跟方向走：支出显示高频支出分类，收入显示高频收入分类
+        refreshUsageRow()
+    }
+
+    /**
+     * 常用分类条（0.2.11）：历史高频分类一键直达。
+     *
+     * - 频次按**当前方向**统计、范围为全部来源（含账单导入）——买得多的品类
+     *   自然靠前，比只数手动记的更贴近真实消费习惯
+     * - 点 chip 与点网格同源同效（resetTo 即选中 + 展开其父级的二级）
+     * - chips 不做选中态：选中由下方网格表达，两处状态迟早对不上（见 topUsed 注释）
+     * - 达不到门槛（至少 2 次）→ 整行隐藏，新装机器不显示空壳
+     */
+    private fun refreshUsageRow() {
+        val topIds = CategoryDao.topUsed(ServiceLocator.dao.categoryUsageCount(addDirection))
+        // 已删自定义分类的历史 id 理论不会出现（删除时已回退），mapNotNull 兜住脏数据
+        val byId = ServiceLocator.categoryDao.all().associateBy { it.id }
+        val chips = topIds.mapNotNull { byId[it] }
+
+        binding.usageChips.removeAllViews()
+        binding.usageRow.visibility = if (chips.isEmpty()) View.GONE else View.VISIBLE
+        for (c in chips) {
+            binding.usageChips.addView(TextView(this).apply {
+                text = c.name
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setBackgroundResource(R.drawable.bg_chip)
+                setTextColor(getColor(R.color.text_primary))
+                setPadding(dp(12), dp(5), dp(12), dp(5))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = dp(7) }
+                setOnClickListener { addPicker?.resetTo(c.id) }
+            })
+        }
     }
 
     /**
