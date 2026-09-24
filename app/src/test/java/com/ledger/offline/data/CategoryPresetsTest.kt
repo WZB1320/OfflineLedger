@@ -119,4 +119,28 @@ class CategoryPresetsTest {
         assertTrue("social（社交）一级缺失", "social" in CategoryPresets.TOP_IDS)
         assertTrue("travel（旅行）一级缺失", "travel" in CategoryPresets.TOP_IDS)
     }
+
+    @Test
+    fun `电费-车挂在生活缴费下`() {
+        val preset = CategoryPresets.ALL.firstOrNull { it.id == CategoryPresets.CAR_POWER_ID }
+        assertNotNull(
+            "预置里没有「电费-车」——DB v6 迁移对已装用户补种的就是这条，丢了它升级后用户看不到该分类",
+            preset
+        )
+        assertEquals("「电费-车」必须挂在 living（生活缴费）下", "living", preset?.parentId)
+        assertEquals("「电费-车」的显示名与用户要求不符", "电费-车", preset?.name)
+    }
+
+    @Test
+    fun `记一笔默认分类在预置里且是二级`() {
+        val preset = CategoryPresets.ALL.firstOrNull { it.id == CategoryPresets.DEFAULT_ADD_CATEGORY_ID }
+        assertNotNull(
+            "记一笔默认分类不在预置里——进记一笔页 CategoryPicker 会静默回退到「其他」",
+            preset
+        )
+        assertTrue(
+            "记一笔默认分类应为二级（用户要求默认「餐饮-买菜」），一级无法体现高频场景的精度",
+            preset != null && preset.parentId.isNotEmpty()
+        )
+    }
 }

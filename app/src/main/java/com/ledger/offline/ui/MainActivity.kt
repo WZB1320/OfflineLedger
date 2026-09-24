@@ -138,14 +138,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindViews() {
         flowAdapter = TransactionAdapter(
-            onRowClick = { txn ->
-                // 点同一行＝收起，点另一行＝换一行选中。选中态由 adapter 自己持有，
-                // Activity 不另存一份 id——两处存同一件事迟早对不上。
-                val next = if (flowAdapter.selectedId() == txn.id) null else txn.id
-                flowAdapter.setSelected(next)
-            },
-            onEdit = { txn -> showEditSheet(txn) },
-            onDelete = { txn -> confirmDelete(txn) },
+            // 点行直接进编辑（0.2.10 按用户要求简化：原先要先点开选中态再点「修改」，
+            // 两步变一步）。删除入口也收进编辑弹窗——一次点行，改与删都在手边。
+            onRowClick = { txn -> showEditSheet(txn) },
             onLongPress = { txn -> showCategorySheet(txn) }
         )
         binding.recycler.layoutManager = LinearLayoutManager(this)
@@ -372,8 +367,8 @@ class MainActivity : AppCompatActivity() {
      * 保存后切回流水页会「什么都没发生」，那笔其实已经进库了，只是不在视野里。
      * 用户只能靠再翻一遍月份来确认自己到底记进去没有。
      *
-     * 选中它（而不只是滚到那儿）是刻意的：既指出「是这一条」，
-     * 也顺手把修改 / 删除递到手边——刚记的数最容易按错一位。
+     * 选中它（而不只是滚到那儿）是刻意的：高亮指出「是这一条」；
+     * 点行即进编辑，用户要改刚记错的数也就是再点一下的事。
      */
     private fun revealPendingRow(shown: List<Transaction>) {
         val id = pendingRowId ?: return
@@ -436,8 +431,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindAddPage() {
         // 两级分类选择：一级网格常驻，点选某一级后在其下展开二级。
-        // 记一笔默认落在「其他」——不替用户猜，等他动手选。
-        addPicker = CategoryPicker(binding.catGrid, binding.catGrid2, null)
+        // 默认选中「餐饮-买菜」：用户高频场景是买菜做饭（0.2.10 按用户要求，
+        // 由「不替用户猜」的「其他」改为替他省一次点击）。
+        addPicker = CategoryPicker(
+            binding.catGrid, binding.catGrid2, CategoryPresets.DEFAULT_ADD_CATEGORY_ID
+        )
         binding.tvManageCategories.setOnClickListener { showCategoryManager() }
 
         binding.tvAddCancel.setOnClickListener {
@@ -570,16 +568,10 @@ class MainActivity : AppCompatActivity() {
                     .coerceIn(MIN_MONTH_OFFSET, 0)
                 filter = FlowList.Filter.ALL
 
-                // 并进既有记录时不写「已记一笔」：用户没看到新行，会以为记丢了
-                toast(
-                    getString(
-                        if (result.outcome == TransactionDao.MergeOutcome.ADDED) {
-                            R.string.add_saved
-                        } else {
-                            R.string.add_merged
-                        }
-                    )
-                )
+                // 保存反馈只要一句「保存成功」（0.2.10 按用户要求）：
+                // 新增与并进既有是两种结局，但用户此刻关心的都只是「存上了没有」，
+                // 区分措辞反而让「并入」这种内部术语打断他。
+                toast(getString(R.string.add_saved))
                 resetAddForm()
                 switchPage(Page.FLOW)
             }
@@ -597,6 +589,9 @@ class MainActivity : AppCompatActivity() {
         binding.etMerchant.setText("")
         renderAddTime()
         setAddDirection(Direction.EXPENSE)
+        // 分类同样归位到默认「餐饮-买菜」：表单清空就是「回到起点」，
+        // 分类停在上一笔的选择上，等于没清干净
+        addPicker?.resetTo(CategoryPresets.DEFAULT_ADD_CATEGORY_ID)
     }
 
     // ------------------------------------------------------------ 修改 / 删除一笔
@@ -696,6 +691,12 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.edit_title)
             .setView(ScrollView(this).apply { addView(container) })
             .setNegativeButton(R.string.add_cancel, null)
+            // 0.2.10：删除入口收进编辑弹窗（点行即达），不再依赖列表行的操作按钮。
+            // 仍走 confirmDelete 的二次确认——删除不可逆，确认框是最后一道闸。
+            .setNeutralButton(R.string.row_delete) { d, _ ->
+                d.dismiss()
+                confirmDelete(txn)
+            }
             // 正向按钮自己接管点击：默认实现无论校验结果如何都会关掉弹窗，
             // 金额填错就把整个表单吹掉，用户得重新点进来
             .setPositiveButton(R.string.add_save, null)
@@ -737,8 +738,9 @@ class MainActivity : AppCompatActivity() {
     /**
      * 删除一笔。
      *
-     * 必须二次确认：列表行是容易误触的地方，而删除不可逆（本机不留回收站，
-     * 也没有云备份——离线是硬约束的一部分）。
+     * 必须二次确认：删除不可逆（本机不留回收站，也没有云备份——离线是硬约束
+     * 的一部分）。入口在编辑弹窗的「删除」键，从弹窗到确认框是两道独立操作，
+     * 连点两下不会贯穿。
      */
     private fun confirmDelete(txn: Transaction) {
         AlertDialog.Builder(this)
@@ -853,6 +855,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun selected(): Category = picked
+
+        /** 归位到指定分类（表单重置用）。不存在的 id 回退兜底，逻辑与构造时一致 */
+        fun resetTo(id: String) {
+            picked = resolve(id)
+            applySelection()
+        }
 
         /** 管理页增删排序后调用：从库里重载，尽量保住原选中（被删则回退兜底） */
         fun reload() {

@@ -17,6 +17,15 @@ object CategoryPresets {
 
     data class Preset(val id: String, val name: String, val parentId: String, val sort: Int)
 
+    /** 兜底分类的 id。与 classify_rules.json 的 fallback.id 必须一致，有单测交叉校验 */
+    const val FALLBACK_ID = "other"
+
+    /** 「电费-车」（电动车电费）的 id。DB v6 迁移对已装用户补种这一条，有单测锁定 */
+    const val CAR_POWER_ID = "living.carPower"
+
+    /** 记一笔的默认分类（用户高频场景是买菜做饭，0.2.10 按用户要求从「其他」改为「餐饮-买菜」） */
+    const val DEFAULT_ADD_CATEGORY_ID = "food.grocery"
+
     val ALL: List<Preset> = listOf(
         // ---------- 一级 + 餐饮二级（8 个） ----------
         Preset("food", "餐饮", "", 10),
@@ -44,11 +53,13 @@ object CategoryPresets {
         Preset("shopping.electronics", "数码电器", "shopping", 33),
         Preset("shopping.beauty", "美妆护肤", "shopping", 34),
 
-        // ---------- 生活缴费（3 个） ----------
+        // ---------- 生活缴费（4 个） ----------
         Preset("living", "生活缴费", "", 40),
         Preset("living.phone", "话费网费", "living", 41),
         Preset("living.utilities", "水电燃气", "living", 42),
         Preset("living.property", "物业保洁", "living", 43),
+        // 电动车电费：与家里电费走同一条生活缴费口径（0.2.10 按用户要求新增）
+        Preset(CAR_POWER_ID, "电费-车", "living", 44),
 
         // ---------- 医疗（2 个） ----------
         Preset("medical", "医疗", "", 50),
@@ -100,7 +111,4 @@ object CategoryPresets {
 
     /** 全部一级 id（parentId 为空）。统计聚合与回退兜底都以这批为锚点 */
     val TOP_IDS: Set<String> = ALL.filter { it.parentId.isEmpty() }.map { it.id }.toSet()
-
-    /** 兜底分类的 id。与 classify_rules.json 的 fallback.id 必须一致，有单测交叉校验 */
-    const val FALLBACK_ID = "other"
 }

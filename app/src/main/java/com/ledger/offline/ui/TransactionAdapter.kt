@@ -25,13 +25,12 @@ import java.util.Locale
  * 分组头带上当日支出小计（设计稿屏 1），所以「分档」与「求和」是同一遍扫描完成的
  * （[FlowList.group]），这里只负责渲染，不再自己算一遍——两处各算一次迟早对不上。
  *
- * 选中态由 [selectedId] 驱动：点一下高亮、右侧浮现修改 / 删除，再点一下收起。
- * 同一时刻只有一行处于选中态——两行同时开着操作区会把列表弄得很吵。
+ * 点行＝打开编辑（修改 / 删除都在编辑弹窗里，0.2.10 简化）；
+ * 长按＝快速修正分类。[selectedId] 只剩「定位高亮」一个用途：
+ * 记一笔保存后把刚落库的那行摆到眼前（见 MainActivity.revealPendingRow）。
  */
 class TransactionAdapter(
     private val onRowClick: (Transaction) -> Unit,
-    private val onEdit: (Transaction) -> Unit,
-    private val onDelete: (Transaction) -> Unit,
     private val onLongPress: (Transaction) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -138,7 +137,6 @@ class TransactionAdapter(
                 )
             )
             vSelectBar.visibility = if (selected) View.VISIBLE else View.GONE
-            rowActions.visibility = if (selected) View.VISIBLE else View.GONE
 
             vDot.background = dotDrawable(colorOf(txn.categoryId), hollow = unknown)
 
@@ -170,8 +168,6 @@ class TransactionAdapter(
 
             root.setOnClickListener { onRowClick(txn) }
             root.setOnLongClickListener { onLongPress(txn); true }
-            btnEdit.setOnClickListener { onEdit(txn) }
-            btnDelete.setOnClickListener { onDelete(txn) }
         }
     }
 

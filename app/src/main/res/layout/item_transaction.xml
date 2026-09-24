@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  流水行。
-  根是 FrameLayout：选中时右侧要「浮现」修改 / 删除，用覆盖层而不是把它们塞进横向
-  LinearLayout——塞进去会让金额被挤走，点一下列表就横向抖动一下。
+  流水行。点行即进编辑弹窗（修改 / 删除都在弹窗里，0.2.10 简化），
+  本布局只剩展示 + 一条定位高亮竖线。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rowRoot"
@@ -97,53 +96,6 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:textSize="16sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <!--
-      选中后浮现的操作区。背景不透明，用来盖住它下面的金额与商户名——
-      半透明会让两层文字叠在一起，谁也读不清。
-    -->
-    <LinearLayout
-        android:id="@+id/rowActions"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_gravity="end"
-        android:background="@color/surface"
-        android:clickable="true"
-        android:gravity="center_vertical|end"
-        android:orientation="horizontal"
-        android:paddingStart="10dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/btnEdit"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_action"
-            android:paddingStart="11dp"
-            android:paddingEnd="11dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:text="@string/row_edit"
-            android:textColor="@color/brand"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/btnDelete"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="7dp"
-            android:background="@drawable/bg_action"
-            android:paddingStart="11dp"
-            android:paddingEnd="11dp"
-            android:paddingTop="5dp"
-            android:paddingBottom="5dp"
-            android:text="@string/row_delete"
-            android:textColor="@color/expense"
-            android:textSize="12sp"
             android:textStyle="bold" />
     </LinearLayout>
 </FrameLayout>

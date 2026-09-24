@@ -96,13 +96,11 @@
     <string name="add_time_modify">修改</string>
     <string name="add_need_amount">请输入金额</string>
     <string name="amount_invalid">金额只能是数字，最多两位小数</string>
-    <string name="add_saved">已记一笔</string>
-    <!-- 手动记账撞上库里已有的一笔：不是"没记进去"，是并进去了，得说清楚 -->
-    <string name="add_merged">与已有的一笔是同一笔，已并入</string>
+    <!-- 保存反馈只要一句（0.2.10 按用户要求）：新增与并入既有共用它 -->
+    <string name="add_saved">保存成功</string>
     <string name="add_dup_hint">与已有记录重复，未重复记账</string>
 
     <!-- —— 历史记录的编辑 —— -->
-    <string name="row_edit">修改</string>
     <string name="row_delete">删除</string>
     <string name="edit_title">修改记录</string>
     <string name="edit_saved">已更新</string>

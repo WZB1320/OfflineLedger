@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  行内的来源标记（"手动"）底：软灰小方块。
-  刻意不与 bg_action 共用——那是可点的按钮，用户会去戳；这只是一个静态标记，
-  有描边会被误读成按钮。
+  行内的来源标记（"手动"）底：软灰小方块。只做静态标记，
+  不加描边——会被误读成可点的按钮。
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">

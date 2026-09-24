@@ -80,6 +80,15 @@ class LedgerDb(context: Context) :
             // 再删该行，最后 INSERT OR IGNORE 补入全部新预置（已有的不动，新的补进去）。
             upgradeCategoriesV5(db)
         }
+        if (oldVersion < 6) {
+            // 0.2.9→0.2.10：生活缴费新增二级「电费-车」（用户电动车电费走生活缴费口径）。
+            // 纯增量补种：INSERT OR IGNORE，用户若已自建同名分类则不动（用户数据优先）。
+            val p = CategoryPresets.ALL.first { it.id == CategoryPresets.CAR_POWER_ID }
+            db.execSQL(
+                "INSERT OR IGNORE INTO categories(id, name, parent_id, is_custom, sort) VALUES(?, ?, ?, ?, ?)",
+                arrayOf(p.id, p.name, p.parentId, "0", p.sort.toString())
+            )
+        }
     }
 
     /**
@@ -156,6 +165,6 @@ class LedgerDb(context: Context) :
 
     companion object {
         const val DB_NAME = "ledger.db"
-        const val DB_VERSION = 5
+        const val DB_VERSION = 6
     }
 }
